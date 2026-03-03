@@ -1,0 +1,100 @@
+{
+  "projectType": "framework",
+  "projectName": "CustomItems LabAPI",
+  "projectDescription": "A flexible plugin framework for creating and managing custom items in SCP: Secret Laboratory with LabAPI.",
+  "theme": "aspen",
+  "primaryColor": "#7B00FF",
+  "lightColor": "#9D4EDD",
+  "darkColor": "#5A01A7",
+  "navigation": {
+    "tabs": [
+      {
+        "tab": "Documentation",
+        "groups": [
+          {
+            "group": "Get Started",
+            "pages": [
+              "introduction",
+              "installation",
+              "quickstart"
+            ]
+          },
+          {
+            "group": "Core Concepts",
+            "pages": [
+              "concepts/architecture",
+              "concepts/custom-items",
+              "concepts/event-system",
+              "concepts/registration"
+            ]
+          },
+          {
+            "group": "Guides",
+            "pages": [
+              "guides/creating-items",
+              "guides/event-hooks",
+              "guides/spawning-items",
+              "guides/configuration"
+            ]
+          },
+          {
+            "group": "Examples",
+            "pages": [
+              "examples/emp-grenade",
+              "examples/healing-syringe",
+              "examples/pocket-mirror"
+            ]
+          }
+        ]
+      },
+      {
+        "tab": "API Reference",
+        "groups": [
+          {
+            "group": "Core API",
+            "pages": [
+              "api/custom-item",
+              "api/custom-items",
+              "api/event-handler"
+            ]
+          },
+          {
+            "group": "Utilities",
+            "pages": [
+              "api/spawning",
+              "api/positioning"
+            ]
+          }
+        ]
+      }
+    ]
+  },
+  "keyFeatures": [
+    "Define custom items with unique behaviors and event hooks",
+    "Register and manage items through a centralized API",
+    "Hook into item lifecycle events (using, dropping, picking up, selecting)",
+    "Spawn items at specific positions or random locations in rooms",
+    "Built-in command system for interacting with custom items",
+    "Includes example items (EMP Grenade, Healing Syringe, Pocket Mirror)"
+  ],
+  "publicApiSurface": [
+    "CustomItem (abstract base class)",
+    "CustomItems.Register()",
+    "CustomItems.RegisterAll()",
+    "CustomItems.Unregister()",
+    "CustomItems.UnregisterAll()",
+    "CustomItems.TrySpawn()",
+    "CustomItems.TryGive()",
+    "CustomItems.GetById()",
+    "CustomItems.GetIdByName()",
+    "CustomItems.GetRandomPositionInRoom()",
+    "OnUsing() event hook",
+    "OnUsed() event hook",
+    "OnDropping() event hook",
+    "OnDropped() event hook",
+    "OnPickingUp() event hook",
+    "OnPickedUp() event hook",
+    "OnSelecting() event hook",
+    "OnSelected() event hook"
+  ]
+}
