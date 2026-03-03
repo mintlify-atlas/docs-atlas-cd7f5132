@@ -74,7 +74,8 @@
             "group": "Utilities",
             "pages": [
               "api/spawning",
-              "api/positioning"
+              "api/positioning",
+              "api/commands"
             ]
           }
         ]

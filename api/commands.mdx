@@ -1,0 +1,163 @@
+---
+title: Commands
+description: Built-in server commands for managing custom items
+---
+
+# Commands
+
+CustomItems LabAPI includes built-in server commands for managing custom items in-game. These commands are available through the Remote Admin console and game console.
+
+## customItem
+
+Give a player a specified custom item by ID.
+
+**Command**: `customItem` (alias: `ci`)
+
+**Permission required**: `GivingItems`
+
+**Usage**:
+```bash
+customItem <itemId> [player]
+```
+
+### Parameters
+
+<ParamField path="itemId" type="ushort" required>
+  The ID of the custom item to give. Use the command without arguments to see all registered items and their IDs.
+</ParamField>
+
+<ParamField path="player" type="string">
+  The target player. Can be:
+  - Player ID (numeric)
+  - Player UserID
+  - Player nickname (partial match supported)
+  - `*` or `all` to give to all eligible players
+  
+  If omitted, gives the item to yourself (when executed by a player).
+</ParamField>
+
+### Eligibility requirements
+
+Players must meet these conditions to receive custom items:
+
+- Must be alive
+- Must not be disarmed
+- Must have fewer than 8 items in inventory
+
+### Examples
+
+```bash
+# List all registered custom items
+customItem
+
+# Give item ID 0 to yourself
+customItem 0
+
+# Give item ID 1 to player "John"
+customItem 1 John
+
+# Give item ID 2 to all eligible players
+customItem 2 all
+```
+
+### Response format
+
+```csharp CustomItemCommand.cs:64
+response = $"{item.Name} given to {player.Nickname} ({player.UserId})";
+```
+
+For multiple players:
+```csharp CustomItemCommand.cs:79
+response = $"{item.Name} given to all players who can receive them ({eligiblePlayers.Count} players)";
+```
+
+## tppos
+
+Teleport to a specified position (debug command).
+
+**Command**: `tppos` (alias: `tpp`)
+
+**Permission required**: `Noclip`
+
+**Usage**:
+```bash
+tppos <x> <y> <z>
+```
+
+### Parameters
+
+<ParamField path="x" type="float" required>
+  X coordinate in world space
+</ParamField>
+
+<ParamField path="y" type="float" required>
+  Y coordinate in world space
+</ParamField>
+
+<ParamField path="z" type="float" required>
+  Z coordinate in world space
+</ParamField>
+
+<Note>
+This command is primarily for debugging spawn positions. Coordinates can include commas, which will be automatically removed during parsing.
+</Note>
+
+### Examples
+
+```bash
+# Teleport to coordinates (100, 50, 200)
+tppos 100 50 200
+
+# Coordinates with commas (will be parsed correctly)
+tppos 100,5 50,0 200,3
+```
+
+### Implementation
+
+```csharp TPPos.cs:36-45
+if (!float.TryParse(arguments.At(0).Replace(",", ""), out float x) ||
+    !float.TryParse(arguments.At(1).Replace(",", ""), out float y) ||
+    !float.TryParse(arguments.At(2).Replace(",", ""), out float z))
+{
+    response = "Invalid coordinates.";
+    return false;
+}
+
+Vector3 position = new Vector3(x, y, z);
+player.Position = position;
+```
+
+## Common patterns
+
+### Using commands for testing
+
+Commands are useful during development to test custom items:
+
+```bash
+# 1. List all registered items to find the ID
+customItem
+
+# 2. Give yourself the item to test
+customItem 0
+
+# 3. Teleport to a specific location to test spawning
+tppos 100 50 200
+```
+
+### Permission requirements
+
+Both commands check permissions before execution:
+
+```csharp CustomItemCommand.cs:25-29
+if (!sender.CheckPermission(PlayerPermissions.GivingItems))
+{
+    response = "Permission Denied, required: " + PlayerPermissions.GivingItems;
+    return false;
+}
+```
+
+## Related concepts
+
+- Learn about [spawning items programmatically](/api/spawning)
+- Explore [positioning utilities](/api/positioning) for finding valid spawn locations
+- See [configuration options](/guides/configuration) for enabling example items
