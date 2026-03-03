@@ -1,0 +1,186 @@
+---
+title: Position Utilities
+description: Methods for finding and calculating valid spawn positions
+---
+
+The positioning utilities provide methods to find valid positions in the game world, particularly useful for spawning items in accessible locations.
+
+## GetRandomPositionInRoom
+
+Gets a random position within a specified room, attempting to find a location that is accessible to players.
+
+```csharp
+public static Vector3 GetRandomPositionInRoom(Room room)
+```
+
+### Parameters
+
+<ParamField path="room" type="Room" required>
+  The room in which to find a random position
+</ParamField>
+
+### Returns
+
+A `Vector3` representing a valid position in the room, or `Vector3.zero` if no valid position could be found.
+
+### Behavior
+
+This method uses a sophisticated algorithm to find accessible positions:
+
+1. **Attempts up to 100 times** to find a valid position
+2. For each attempt:
+   - Generates a random point within the room's bounding box
+   - Uses `TryGetRoofPosition` to find the floor below that point
+   - Converts the position using `RelativePosition` for proper world coordinates
+   - Checks if the position is inside a solid object using `Physics.CheckSphere`
+   - Performs raycast validation in four directions (left, right, forward, back)
+   - For each direction, casts a ray and verifies it hits a surface
+   - Casts a reverse ray from the hit point to ensure the same collider is hit
+   - Validates there are no obstructions between the position and room center
+3. **Fallback**: If all attempts fail, returns the center of the room at floor level
+
+### Raycast Validation
+
+The method performs extensive raycast checks to avoid spawning items:
+- Inside walls or other objects
+- Behind inaccessible barriers
+- In positions where rays cannot return (indicating holes or gaps)
+
+### Example
+
+```csharp
+Room lcz914 = Room.List.FirstOrDefault(r => r.Type == RoomType.Lcz914);
+if (lcz914 != null)
+{
+    Vector3 spawnPos = CustomItems.GetRandomPositionInRoom(lcz914);
+    CustomItems.TrySpawn(1001, spawnPos, out _);
+}
+```
+
+### Notes
+
+- May rarely return a position behind a wall that is unreachable by players
+- Returns `Vector3.zero` if the room is destroyed
+- Uses `FpcStateProcessor.Mask` for physics checks to detect solid surfaces
+
+## GetRandomPosition
+
+Gets a random position in any room in the facility.
+
+```csharp
+public static Vector3 GetRandomPosition()
+```
+
+### Returns
+
+A `Vector3` representing a random position in a randomly selected room, or `Vector3.zero` if no valid position could be found.
+
+### Behavior
+
+1. Filters all rooms to exclude destroyed rooms
+2. Randomly selects one room from the list
+3. Uses `TryGetRoofPosition` with the room's center position to find floor level
+4. Converts to world coordinates using `RelativePosition`
+
+### Example
+
+```csharp
+Vector3 randomPos = CustomItems.GetRandomPosition();
+if (randomPos != Vector3.zero)
+{
+    CustomItems.TrySpawn(1001, randomPos, out _);
+}
+```
+
+### Notes
+
+- This is a simpler alternative to `GetRandomPositionInRoom` when the specific room doesn't matter
+- Does not perform the extensive validation that `GetRandomPositionInRoom` does
+- May occasionally return less accessible positions
+
+## GetRandomPointInBounds
+
+Generates a random point within a specified bounding box.
+
+```csharp
+public static Vector3 GetRandomPointInBounds(Bounds bounds)
+```
+
+### Parameters
+
+<ParamField path="bounds" type="Bounds" required>
+  The bounding box within which to generate a random point
+</ParamField>
+
+### Returns
+
+A `Vector3` representing a random point inside the bounds.
+
+### Behavior
+
+1. Generates a random point inside a unit sphere using `UnityEngine.Random.insideUnitSphere`
+2. Scales the point by the bounds' extents on each axis
+3. Offsets the result by the bounds' center
+
+### Example
+
+```csharp
+Bounds roomBounds = room.Base.WorldspaceBounds;
+Vector3 randomPoint = CustomItems.GetRandomPointInBounds(roomBounds);
+```
+
+### Notes
+
+- This is a low-level utility used internally by `GetRandomPositionInRoom`
+- Does not validate if the position is accessible or inside solid objects
+- Always returns a point within the mathematical bounds, but may be inside walls
+
+## TryGetRoofPosition
+
+Finds the floor position below a given point by raycasting upward to the ceiling.
+
+```csharp
+internal static bool TryGetRoofPosition(Vector3 point, out Vector3 result)
+```
+
+### Parameters
+
+<ParamField path="point" type="Vector3" required>
+  The starting point from which to cast a ray upward
+</ParamField>
+
+<ParamField path="result" type="Vector3" required>
+  When this method returns, contains the calculated floor position if successful, or Vector3.zero if no ceiling was found
+</ParamField>
+
+### Returns
+
+`true` if a ceiling was found above the point; otherwise, `false`.
+
+### Behavior
+
+1. Casts a ray upward from the given point
+2. If the ray hits a surface within 30 units:
+   - Calculates the floor position as 0.3 units below the hit point
+   - Returns the adjusted position
+3. If no surface is hit, returns `Vector3.zero`
+
+### Example
+
+```csharp
+if (CustomItems.TryGetRoofPosition(somePoint, out Vector3 floorPos))
+{
+    Log.Info($"Floor position: {floorPos}");
+}
+else
+{
+    Log.Warning("No ceiling found above this point");
+}
+```
+
+### Notes
+
+- This is an internal method primarily used by other positioning utilities
+- The 0.3 unit offset prevents items from spawning exactly on the surface
+- Uses a maximum raycast distance of 30 units
+- Uses `FpcStateProcessor.Mask` to detect solid surfaces

@@ -1,0 +1,232 @@
+---
+title: "Healing Syringe"
+description: "A medical item that heals the player gradually over time"
+---
+
+## Overview
+
+The Healing Syringe is a custom item that heals the player over a period of time rather than instantly. It demonstrates how to:
+
+- Override the `OnUsing()` hook
+- Create coroutines for time-based effects
+- Remove items immediately after use
+- Implement healing mechanics
+
+## Features
+
+- Heals 10 HP every second for 5 seconds (50 HP total)
+- 1.5 second initial delay before healing starts
+- Based on the Adrenaline item type
+- Item is consumed immediately on use
+- Healing continues even after item removal
+
+## Implementation
+
+### Full Source Code
+
+```csharp
+using LabApi.Events.Arguments.PlayerEvents;
+using LabApi.Features.Wrappers;
+using MEC;
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Text;
+using System.Threading.Tasks;
+
+namespace CustomItems.API.Example;
+
+public class HealingSyringe : CustomItem
+{
+    public override string Name => "Healing Syringe";
+
+    public override string Description => "Applies gradual healing to the user.";
+
+    public override ItemType Type => ItemType.Adrenaline;
+
+    public override void OnRegistered() { }
+
+    public override void OnUnregistered() { }
+
+
+    public override void OnUsing(PlayerUsingItemEventArgs ev)
+    {
+        const float initialDelay = 1.5f;
+        const float duration = 5f;
+        const float tickRate = 1f;
+        const int healPerTick = 10;
+
+        Timing.RunCoroutine(HealOverTime(ev.Player, initialDelay, duration, tickRate, healPerTick));
+
+        ev.Player.RemoveItem(ev.UsableItem);
+    }
+
+    private IEnumerator<float> HealOverTime(Player player, float initialDelay, float duration, float tickRate, int healPerTick)
+    {
+        yield return Timing.WaitForSeconds(initialDelay);
+        float elapsed = 0f;
+        while (elapsed < duration)
+        {
+            if (player.IsAlive)
+                player.Heal(healPerTick);
+            elapsed += tickRate;
+            yield return Timing.WaitForSeconds(tickRate);
+        }
+    }
+}
+```
+
+## How It Works
+
+### OnUsing Hook
+
+The `OnUsing()` method is called when a player uses the item:
+
+```csharp
+public override void OnUsing(PlayerUsingItemEventArgs ev)
+{
+    const float initialDelay = 1.5f;
+    const float duration = 5f;
+    const float tickRate = 1f;
+    const int healPerTick = 10;
+
+    Timing.RunCoroutine(HealOverTime(ev.Player, initialDelay, duration, tickRate, healPerTick));
+
+    ev.Player.RemoveItem(ev.UsableItem);
+}
+```
+
+<Tip>
+Constants at the method level make it easy to adjust healing parameters without digging through the coroutine logic.
+</Tip>
+
+### Immediate Item Removal
+
+The item is removed from the player's inventory immediately:
+
+```csharp
+ev.Player.RemoveItem(ev.UsableItem);
+```
+
+<Note>
+Removing the item right away prevents the player from using it multiple times. The healing effect continues via the coroutine even after removal.
+</Note>
+
+### Healing Coroutine
+
+The coroutine handles the gradual healing effect:
+
+```csharp
+private IEnumerator<float> HealOverTime(Player player, float initialDelay, float duration, float tickRate, int healPerTick)
+{
+    yield return Timing.WaitForSeconds(initialDelay);
+    float elapsed = 0f;
+    while (elapsed < duration)
+    {
+        if (player.IsAlive)
+            player.Heal(healPerTick);
+        elapsed += tickRate;
+        yield return Timing.WaitForSeconds(tickRate);
+    }
+}
+```
+
+**Breakdown:**
+
+1. **Initial Delay**: Waits 1.5 seconds before healing begins
+2. **Tick Loop**: Runs for 5 seconds, healing every 1 second
+3. **Safety Check**: Only heals if the player is still alive
+4. **Timing**: Uses `Timing.WaitForSeconds()` for precise delays
+
+<Tip>
+Always check `player.IsAlive` in coroutines to avoid errors if the player dies during the effect.
+</Tip>
+
+## Key Patterns
+
+### Coroutines for Over-Time Effects
+
+Coroutines are perfect for effects that happen over time:
+
+```csharp
+Timing.RunCoroutine(HealOverTime(...));
+```
+
+Benefits:
+- Non-blocking execution
+- Precise timing control
+- Can be cancelled if needed
+- Continues independent of item existence
+
+### Parameter Configuration
+
+Using constants makes the item easily configurable:
+
+```csharp
+const float initialDelay = 1.5f;    // Time before healing starts
+const float duration = 5f;          // Total healing duration
+const float tickRate = 1f;          // Time between heals
+const int healPerTick = 10;         // HP restored per tick
+```
+
+### OnUsing vs OnUsed
+
+- **OnUsing**: Called when the player starts using the item (before the use animation completes)
+- **OnUsed**: Called after the use animation finishes
+
+<Note>
+The Healing Syringe uses `OnUsing()` to start healing immediately and remove the item before the animation completes, giving instant feedback.
+</Note>
+
+## Usage Example
+
+```csharp
+var healingSyringe = new HealingSyringe();
+healingSyringe.Register();
+
+// Give to a player
+healingSyringe.Give(player);
+
+// When used:
+// - Item is removed from inventory immediately
+// - After 1.5 seconds, healing begins
+// - Player receives 10 HP every second for 5 seconds
+// - Total: 50 HP over 5 seconds
+```
+
+## Customization Ideas
+
+### Faster Healing
+
+```csharp
+const float tickRate = 0.5f;      // Heal twice per second
+const int healPerTick = 5;        // 5 HP per tick
+// Result: 50 HP over 5 seconds (10 ticks)
+```
+
+### Instant Burst Heal
+
+```csharp
+const float initialDelay = 0f;    // No delay
+const float duration = 0f;        // No over-time
+const int healPerTick = 50;       // Instant 50 HP
+```
+
+### Add Visual Feedback
+
+```csharp
+public override void OnUsing(PlayerUsingItemEventArgs ev)
+{
+    // Show hint to player
+    ev.Player.ShowHint("Healing over time...", 5);
+    
+    Timing.RunCoroutine(HealOverTime(ev.Player, initialDelay, duration, tickRate, healPerTick));
+    ev.Player.RemoveItem(ev.UsableItem);
+}
+```
+
+## Related Concepts
+
+- [OnUsing Hook](/core-concepts/hooks#onusing)
+- [Coroutines and Timing](/advanced/coroutines)
+- [Player Health Management](/api-reference/player-health)

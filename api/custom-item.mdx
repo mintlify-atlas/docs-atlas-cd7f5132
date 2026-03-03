@@ -1,0 +1,327 @@
+---
+title: CustomItem
+description: Abstract base class for creating custom items
+---
+
+`CustomItem` is the abstract base class that all custom items must inherit from. It provides properties to define item behavior, event hooks for item interactions, and helper methods to check if an item instance belongs to this custom item type.
+
+## Properties
+
+<ResponseField name="Id" type="ushort">
+  The unique identifier assigned to this custom item when registered. This is set internally by the registration system.
+</ResponseField>
+
+<ResponseField name="Name" type="string" required>
+  The display name of the custom item. Must be overridden in derived classes.
+</ResponseField>
+
+<ResponseField name="Description" type="string" required>
+  A description of the custom item shown to players. Must be overridden in derived classes.
+</ResponseField>
+
+<ResponseField name="Type" type="ItemType" required>
+  The base game item type this custom item is based on. Must be overridden in derived classes.
+</ResponseField>
+
+<ResponseField name="Weight" type="float" default="1.0f">
+  The weight of the item in the player's inventory. Defaults to 1.0.
+</ResponseField>
+
+### Hint Settings
+
+<ResponseField name="ShowItemHints" type="bool" default="true">
+  Whether to show hints for this item. This controls the overall hint display.
+</ResponseField>
+
+<ResponseField name="ShowPickupHints" type="bool" default="true">
+  Whether to show a hint when the player picks up this item. Requires `ShowItemHints` to be true.
+</ResponseField>
+
+<ResponseField name="ShowSelectedHints" type="bool" default="true">
+  Whether to show a hint when the player selects this item. Requires `ShowItemHints` to be true.
+</ResponseField>
+
+## Methods
+
+### Check
+
+Helper methods to determine if a specific item instance, pickup, or player's current item belongs to this custom item type.
+
+<CodeGroup>
+```csharp Check by Serial
+public bool Check(ushort serial)
+```
+
+```csharp Check Pickup
+public bool Check(Pickup? pickup)
+```
+
+```csharp Check Item
+public bool Check(Item? item)
+```
+
+```csharp Check Player
+public bool Check(Player? player)
+```
+</CodeGroup>
+
+<ParamField path="serial" type="ushort">
+  The serial number of the item to check
+</ParamField>
+
+<ParamField path="pickup" type="Pickup?">
+  The pickup to check. Returns false if null.
+</ParamField>
+
+<ParamField path="item" type="Item?">
+  The item to check. Returns false if null.
+</ParamField>
+
+<ParamField path="player" type="Player?">
+  The player whose current item to check. Returns false if null.
+</ParamField>
+
+**Returns:** `bool` - True if the item belongs to this custom item type, false otherwise.
+
+**Example:**
+```csharp
+public override void OnUsing(PlayerUsingItemEventArgs ev)
+{
+    if (!Check(ev.Player))
+        return;
+    
+    // Handle item usage
+    ev.Player.SendHint("Using custom item!");
+}
+```
+
+### OnRegistered
+
+Called when the custom item is registered with the CustomItems system.
+
+```csharp
+public abstract void OnRegistered()
+```
+
+**Example:**
+```csharp
+public override void OnRegistered()
+{
+    Log.Info($"{Name} has been registered!");
+}
+```
+
+### OnUnregistered
+
+Called when the custom item is unregistered from the CustomItems system.
+
+```csharp
+public abstract void OnUnregistered()
+```
+
+**Example:**
+```csharp
+public override void OnUnregistered()
+{
+    Log.Info($"{Name} has been unregistered.");
+}
+```
+
+## Event Hooks
+
+These virtual methods can be overridden to handle item-specific events. All event hooks receive LabAPI event arguments.
+
+### Item Usage Events
+
+<CodeGroup>
+```csharp OnUsing
+public virtual void OnUsing(PlayerUsingItemEventArgs ev)
+```
+
+```csharp OnUsed
+public virtual void OnUsed(PlayerUsedItemEventArgs ev)
+```
+</CodeGroup>
+
+<ParamField path="ev" type="PlayerUsingItemEventArgs | PlayerUsedItemEventArgs">
+  Event arguments containing the player and usable item information. Set `ev.IsAllowed = false` to cancel the event (OnUsing only).
+</ParamField>
+
+**Example:**
+```csharp
+public override void OnUsing(PlayerUsingItemEventArgs ev)
+{
+    if (ev.Player.Health < 50)
+    {
+        ev.IsAllowed = false;
+        ev.Player.SendHint("Not enough health to use this item!");
+    }
+}
+
+public override void OnUsed(PlayerUsedItemEventArgs ev)
+{
+    ev.Player.SendHint("Item used successfully!");
+}
+```
+
+### Item Drop Events
+
+<CodeGroup>
+```csharp OnDropping
+public virtual void OnDropping(PlayerDroppingItemEventArgs ev)
+```
+
+```csharp OnDropped
+public virtual void OnDropped(PlayerDroppedItemEventArgs ev)
+```
+</CodeGroup>
+
+<ParamField path="ev" type="PlayerDroppingItemEventArgs | PlayerDroppedItemEventArgs">
+  Event arguments containing the player, item, and pickup information. Set `ev.IsAllowed = false` to cancel the drop (OnDropping only).
+</ParamField>
+
+**Example:**
+```csharp
+public override void OnDropping(PlayerDroppingItemEventArgs ev)
+{
+    // Prevent dropping in certain zones
+    if (ev.Player.CurrentRoom.Name == "LCZ_173")
+    {
+        ev.IsAllowed = false;
+        ev.Player.SendHint("Cannot drop this item here!");
+    }
+}
+
+public override void OnDropped(PlayerDroppedItemEventArgs ev)
+{
+    Log.Info($"{ev.Player.Nickname} dropped {Name}");
+}
+```
+
+### Item Pickup Events
+
+<CodeGroup>
+```csharp OnPickingUp
+public virtual void OnPickingUp(PlayerPickingUpItemEventArgs ev)
+```
+
+```csharp OnPickedUp
+public virtual void OnPickedUp(PlayerPickedUpItemEventArgs ev)
+```
+</CodeGroup>
+
+<ParamField path="ev" type="PlayerPickingUpItemEventArgs | PlayerPickedUpItemEventArgs">
+  Event arguments containing the player, pickup, and item information. Set `ev.IsAllowed = false` to cancel the pickup (OnPickingUp only).
+</ParamField>
+
+**Example:**
+```csharp
+public override void OnPickingUp(PlayerPickingUpItemEventArgs ev)
+{
+    // Only certain roles can pick up this item
+    if (ev.Player.Role != RoleTypeId.Scientist)
+    {
+        ev.IsAllowed = false;
+        ev.Player.SendHint("Only scientists can pick up this item!");
+    }
+}
+
+public override void OnPickedUp(PlayerPickedUpItemEventArgs ev)
+{
+    // Grant effect when picked up
+    ev.Player.AddEffect(EffectType.MovementBoost, 10f);
+}
+```
+
+### Item Selection Events
+
+<CodeGroup>
+```csharp OnSelecting
+public virtual void OnSelecting(PlayerChangingItemEventArgs ev)
+```
+
+```csharp OnUnselecting
+public virtual void OnUnselecting(PlayerChangingItemEventArgs ev)
+```
+
+```csharp OnSelected
+public virtual void OnSelected(PlayerChangedItemEventArgs ev)
+```
+
+```csharp OnUnselected
+public virtual void OnUnselected(PlayerChangedItemEventArgs ev)
+```
+</CodeGroup>
+
+<ParamField path="ev" type="PlayerChangingItemEventArgs | PlayerChangedItemEventArgs">
+  Event arguments containing the player, old item, and new item information. Set `ev.IsAllowed = false` to cancel the selection change (OnSelecting/OnUnselecting only).
+</ParamField>
+
+**Example:**
+```csharp
+public override void OnSelecting(PlayerChangingItemEventArgs ev)
+{
+    Log.Debug($"{ev.Player.Nickname} is selecting {Name}");
+}
+
+public override void OnSelected(PlayerChangedItemEventArgs ev)
+{
+    // Apply passive effect when held
+    ev.Player.AddEffect(EffectType.DamageReduction, 1f);
+}
+
+public override void OnUnselecting(PlayerChangingItemEventArgs ev)
+{
+    Log.Debug($"{ev.Player.Nickname} is unselecting {Name}");
+}
+
+public override void OnUnselected(PlayerChangedItemEventArgs ev)
+{
+    // Remove passive effect when not held
+    ev.Player.RemoveEffect(EffectType.DamageReduction);
+}
+```
+
+## Complete Example
+
+```csharp
+using CustomItems.API;
+using LabApi.Events.Arguments.PlayerEvents;
+using LabApi.Features.Wrappers;
+
+public class HealingCandy : CustomItem
+{
+    public override string Name => "Healing Candy";
+    public override string Description => "A sweet candy that restores health";
+    public override ItemType Type => ItemType.SCP500;
+    public override float Weight => 0.5f;
+
+    public override bool ShowPickupHints => true;
+    public override bool ShowSelectedHints => false;
+
+    public override void OnRegistered()
+    {
+        Log.Info("Healing Candy registered!");
+    }
+
+    public override void OnUnregistered()
+    {
+        Log.Info("Healing Candy unregistered.");
+    }
+
+    public override void OnUsed(PlayerUsedItemEventArgs ev)
+    {
+        ev.Player.Health += 50;
+        ev.Player.SendHint("You feel refreshed!");
+    }
+
+    public override void OnPickingUp(PlayerPickingUpItemEventArgs ev)
+    {
+        if (ev.Player.Health >= 100)
+        {
+            ev.IsAllowed = false;
+            ev.Player.SendHint("You don't need healing right now.");
+        }
+    }
+}
+```

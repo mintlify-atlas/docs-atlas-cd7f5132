@@ -1,0 +1,198 @@
+---
+title: "EMP Grenade"
+description: "A grenade that locks doors and flickers lights in the explosion room"
+---
+
+## Overview
+
+The EMP Grenade is a custom item that, when exploded, locks all doors in the room and causes lights to flicker for 10 seconds. It demonstrates how to:
+
+- Hook into projectile explosion events
+- Cancel default explosion behavior
+- Interact with room systems (doors and lights)
+- Use delayed callbacks for time-based effects
+
+## Features
+
+- Cancels the default HE grenade explosion
+- Flickers all lights in the room for 10 seconds
+- Locks all unlocked doors in the room
+- Automatically unlocks doors after 10 seconds
+- Based on the HE Grenade item type
+
+## Implementation
+
+### Full Source Code
+
+```csharp
+using CustomItems.Core;
+using LabApi.Events.Arguments.ServerEvents;
+using LabApi.Events.Handlers;
+using LabApi.Features.Wrappers;
+using MEC;
+using Mirror;
+
+namespace CustomItems.API.Example;
+
+public class EMPGrenade : CustomItem
+{
+    public override string Name => "EMP Grenade";
+
+    public override string Description => "Locks doors and disables lights in current room.";
+
+    public override ItemType Type => ItemType.GrenadeHE;
+
+    public override void OnRegistered()
+    {
+        ServerEvents.ProjectileExploding += OnExplosion;
+    }
+
+    public override void OnUnregistered()
+    {
+        ServerEvents.ProjectileExploding -= OnExplosion;
+    }
+
+    private void OnExplosion(ProjectileExplodingEventArgs ev)
+    {
+        if (!Check(ev.TimedGrenade)) return;
+        ev.IsAllowed = false;
+        Log.Debug($"EMP Grenade exploded at {ev.TimedGrenade.Position} in room {ev.TimedGrenade.Room.Name}.");
+
+        Room room = ev.TimedGrenade.Room;
+
+        room.LightController.FlickerLights(10);
+
+        foreach (var door in room.Doors)
+        {
+            if (door.IsLocked) continue;
+            door.IsLocked = true;
+
+            Timing.CallDelayed(10f, () =>
+            {
+                door.IsLocked = false;
+            });
+        }
+
+        NetworkServer.Destroy(ev.TimedGrenade.GameObject);
+    }
+}
+```
+
+## How It Works
+
+### Event Registration
+
+The item registers for the `ProjectileExploding` event when enabled:
+
+```csharp
+public override void OnRegistered()
+{
+    ServerEvents.ProjectileExploding += OnExplosion;
+}
+```
+
+<Note>
+Always remember to unsubscribe from events in `OnUnregistered()` to prevent memory leaks.
+</Note>
+
+### Explosion Handling
+
+When any grenade explodes, the handler checks if it's one of our custom items:
+
+```csharp
+private void OnExplosion(ProjectileExplodingEventArgs ev)
+{
+    if (!Check(ev.TimedGrenade)) return;
+    ev.IsAllowed = false;
+    // ...
+}
+```
+
+<Tip>
+The `Check()` method verifies the grenade's serial number matches a tracked custom item. Setting `ev.IsAllowed = false` cancels the default explosion.
+</Tip>
+
+### Room Effects
+
+The EMP effect operates on all systems in the room:
+
+```csharp
+Room room = ev.TimedGrenade.Room;
+
+// Flicker lights for 10 seconds
+room.LightController.FlickerLights(10);
+
+// Lock all doors
+foreach (var door in room.Doors)
+{
+    if (door.IsLocked) continue;
+    door.IsLocked = true;
+    
+    Timing.CallDelayed(10f, () =>
+    {
+        door.IsLocked = false;
+    });
+}
+```
+
+### Cleanup
+
+Finally, the grenade object is destroyed to prevent any residual effects:
+
+```csharp
+NetworkServer.Destroy(ev.TimedGrenade.GameObject);
+```
+
+## Key Patterns
+
+### Event-Based Item Behavior
+
+Unlike items that override `OnUsing()`, the EMP Grenade uses event handlers to detect when the grenade explodes. This pattern is useful for:
+
+- Grenades and throwables
+- Items that need to react to game events
+- Items with delayed or triggered effects
+
+### Canceling Default Behavior
+
+By setting `ev.IsAllowed = false`, you can prevent the default explosion and implement custom logic:
+
+```csharp
+ev.IsAllowed = false;  // No explosion damage or effects
+```
+
+### Delayed Actions
+
+The `Timing.CallDelayed()` method schedules actions to run after a delay:
+
+```csharp
+Timing.CallDelayed(10f, () =>
+{
+    door.IsLocked = false;  // Unlock after 10 seconds
+});
+```
+
+<Note>
+Delayed callbacks continue running even if the item is removed, making them perfect for persistent effects.
+</Note>
+
+## Usage Example
+
+```csharp
+var empGrenade = new EMPGrenade();
+empGrenade.Register();
+
+// Give to a player
+empGrenade.Give(player);
+
+// When thrown and exploded:
+// - Lights flicker for 10 seconds
+// - All doors lock for 10 seconds
+// - No explosion damage occurs
+```
+
+## Related Concepts
+
+- [Custom Item Lifecycle](/core-concepts/lifecycle)
+- [Event Handlers](/core-concepts/events)
+- [Room Systems](/api-reference/room-systems)

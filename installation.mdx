@@ -1,0 +1,133 @@
+---
+title: Installation
+description: "Install CustomItems LabAPI on your SCP: Secret Laboratory server"
+---
+
+# Installation
+
+This guide walks you through installing CustomItems LabAPI on your SCP: Secret Laboratory server. You can either download a pre-built release or build the plugin from source.
+
+<Note>
+CustomItems LabAPI requires LabAPI to be installed on your server. Make sure you have LabAPI set up before proceeding with this installation.
+</Note>
+
+## Prerequisites
+
+- SCP: Secret Laboratory dedicated server
+- LabAPI installed and configured
+- Access to your server's plugins folder
+
+## Option 1: Download from releases
+
+The easiest way to install CustomItems LabAPI is to download a pre-built release.
+
+<Steps>
+  <Step title="Download the latest release">
+    Visit the [CustomItems releases page](https://github.com/Bill3621/CustomItems/releases) and download the latest `CustomItems-LabAPI.dll` file from the Assets section.
+  </Step>
+
+  <Step title="Locate your plugins folder">
+    Navigate to your SCP: Secret Laboratory server directory and find the plugins folder. The path is typically:
+    
+    ```
+    [Server Directory]/LabApi/Plugins/
+    ```
+  </Step>
+
+  <Step title="Install the plugin">
+    Copy the downloaded `CustomItems-LabAPI.dll` file into your plugins folder.
+  </Step>
+
+  <Step title="Restart your server">
+    Restart your SCP: Secret Laboratory server to load the plugin. You should see confirmation messages in the server console indicating that CustomItems has loaded successfully.
+  </Step>
+</Steps>
+
+## Option 2: Build from source
+
+If you want to modify the plugin or build the latest development version, you can build from source.
+
+<Steps>
+  <Step title="Clone the repository">
+    Open a terminal or command prompt and clone the CustomItems repository:
+    
+    ```bash
+    git clone https://github.com/Bill3621/CustomItems.git
+    ```
+  </Step>
+
+  <Step title="Open the solution">
+    Navigate to the cloned directory and open `CustomItems-LabAPI.sln` in Visual Studio (2019 or later recommended).
+  </Step>
+
+  <Step title="Restore NuGet packages">
+    Visual Studio should automatically restore the required NuGet packages. If not, right-click the solution in Solution Explorer and select "Restore NuGet Packages".
+  </Step>
+
+  <Step title="Build the solution">
+    Build the solution by pressing `Ctrl+Shift+B` or selecting **Build > Build Solution** from the menu. The compiled DLL will be output to the `bin` folder.
+  </Step>
+
+  <Step title="Install the plugin">
+    Copy the built `CustomItems-LabAPI.dll` from the `bin/Debug` or `bin/Release` folder to your server's plugins folder:
+    
+    ```
+    [Server Directory]/LabApi/Plugins/
+    ```
+  </Step>
+
+  <Step title="Restart your server">
+    Restart your SCP: Secret Laboratory server to load the plugin.
+  </Step>
+</Steps>
+
+## Configuration
+
+After installation, CustomItems LabAPI will generate a configuration file at:
+
+```
+[Server Directory]/LabApi/Plugins/CustomItems/config.yml
+```
+
+### Configuration options
+
+The default configuration includes the following options:
+
+```yaml
+# Enable debug logging
+Debug: false
+
+# Enable example items (EMP Grenade, Healing Syringe)
+EnableExampleItems: true
+
+# WARNING: Only for testing! Spawns test items in every room
+TestItemSpawning: false
+```
+
+<Warning>
+Never enable `TestItemSpawning` in production environments. This option is purely for debugging and will spawn items in every room on the map.
+</Warning>
+
+**EnableExampleItems**: Set to `true` to register the included example items (EMP Grenade and Healing Syringe). Set to `false` if you only want to use your own custom items.
+
+**Debug**: Enable detailed debug logging to help troubleshoot issues during development.
+
+## Verify installation
+
+To verify that CustomItems LabAPI is installed correctly:
+
+1. Start your server and check the console output
+2. Look for the message: `CustomItems plugin loaded successfully.`
+3. If `EnableExampleItems` is enabled, you should see registration messages for the example items
+
+<Note>
+If you see any errors during startup, check that LabAPI is properly installed and that all dependencies are present in your plugins folder.
+</Note>
+
+## Next steps
+
+Now that CustomItems LabAPI is installed, you're ready to create your first custom item.
+
+<Card title="Create your first custom item" icon="rocket" href="/quickstart">
+  Follow our quick start guide to build a custom item in minutes
+</Card>

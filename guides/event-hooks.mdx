@@ -1,0 +1,448 @@
+---
+title: Event hooks
+description: How to use event hooks effectively in CustomItems LabAPI
+---
+
+Event hooks allow you to add custom behavior when players interact with your items. This guide covers all available hooks, when they fire, and best practices.
+
+## Available event hooks
+
+The `CustomItem` class provides the following event hooks that you can override:
+
+```csharp
+public override void OnUsing(PlayerUsingItemEventArgs ev) { }
+public override void OnUsed(PlayerUsedItemEventArgs ev) { }
+public override void OnDropping(PlayerDroppingItemEventArgs ev) { }
+public override void OnDropped(PlayerDroppedItemEventArgs ev) { }
+public override void OnPickingUp(PlayerPickingUpItemEventArgs ev) { }
+public override void OnPickedUp(PlayerPickedUpItemEventArgs ev) { }
+public override void OnSelecting(PlayerChangingItemEventArgs ev) { }
+public override void OnUnselecting(PlayerChangingItemEventArgs ev) { }
+public override void OnSelected(PlayerChangedItemEventArgs ev) { }
+public override void OnUnselected(PlayerChangedItemEventArgs ev) { }
+```
+
+## Usage lifecycle
+
+### OnUsing
+
+Fired when a player starts using an item (e.g., consuming a medical item).
+
+**When it fires:**
+- Before the item's use animation completes
+- When the player presses the use key
+
+**What you can do:**
+- Cancel the usage by setting `ev.IsAllowed = false`
+- Start custom effects or coroutines
+- Remove or modify the item
+
+**Example:**
+
+```csharp
+using MEC;
+using System.Collections.Generic;
+
+public override void OnUsing(PlayerUsingItemEventArgs ev)
+{
+    const float initialDelay = 1.5f;
+    const float duration = 5f;
+    const float tickRate = 1f;
+    const int healPerTick = 10;
+    
+    Timing.RunCoroutine(HealOverTime(ev.Player, initialDelay, duration, tickRate, healPerTick));
+    
+    ev.Player.RemoveItem(ev.UsableItem);
+}
+
+private IEnumerator<float> HealOverTime(Player player, float initialDelay, float duration, float tickRate, int healPerTick)
+{
+    yield return Timing.WaitForSeconds(initialDelay);
+    float elapsed = 0f;
+    while (elapsed < duration)
+    {
+        if (player.IsAlive)
+            player.Heal(healPerTick);
+        elapsed += tickRate;
+        yield return Timing.WaitForSeconds(tickRate);
+    }
+}
+```
+
+### OnUsed
+
+Fired after an item has been fully used.
+
+**When it fires:**
+- After the use animation completes
+- After the item's effects have been applied
+
+**What you can do:**
+- Apply post-usage effects
+- Log usage statistics
+- Trigger additional events
+
+**Example:**
+
+```csharp
+public override void OnUsed(PlayerUsedItemEventArgs ev)
+{
+    ev.Player.ShowHint("You feel energized!", 3f);
+}
+```
+
+## Pickup lifecycle
+
+### OnPickingUp
+
+Fired when a player is about to pick up an item from the ground.
+
+**When it fires:**
+- Before the item enters the player's inventory
+- When the player presses the pickup key
+
+**What you can do:**
+- Cancel the pickup by setting `ev.IsAllowed = false`
+- Check if the player has permission to pick up the item
+- Apply conditions or requirements
+
+**Example:**
+
+```csharp
+public override void OnPickingUp(PlayerPickingUpItemEventArgs ev)
+{
+    if (!ev.Player.HasPermission("customitems.specialitem"))
+    {
+        ev.IsAllowed = false;
+        ev.Player.ShowHint("You don't have permission to pick up this item!", 3f);
+    }
+}
+```
+
+### OnPickedUp
+
+Fired after an item has been successfully picked up.
+
+**When it fires:**
+- After the item is in the player's inventory
+- After the pickup has been removed from the ground
+
+**What you can do:**
+- Show confirmation messages
+- Grant effects or abilities
+- Log pickup events
+
+**Example:**
+
+```csharp
+public override void OnPickedUp(PlayerPickedUpItemEventArgs ev)
+{
+    ev.Player.ShowHint($"You picked up {Name}!", 2f);
+}
+```
+
+## Drop lifecycle
+
+### OnDropping
+
+Fired when a player is about to drop an item.
+
+**When it fires:**
+- Before the item leaves the player's inventory
+- When the player presses the drop key
+
+**What you can do:**
+- Cancel the drop by setting `ev.IsAllowed = false`
+- Prevent dropping in certain areas
+- Modify drop behavior
+
+**Example:**
+
+```csharp
+public override void OnDropping(PlayerDroppingItemEventArgs ev)
+{
+    if (ev.Player.CurrentRoom.Name == "PocketDimension")
+    {
+        ev.IsAllowed = false;
+        ev.Player.ShowHint("You cannot drop this item here!", 3f);
+    }
+}
+```
+
+### OnDropped
+
+Fired after an item has been dropped on the ground.
+
+**When it fires:**
+- After the pickup has been spawned
+- After the item has been removed from inventory
+
+**What you can do:**
+- Modify the dropped pickup's properties
+- Track item locations
+- Spawn additional effects
+
+**Example:**
+
+```csharp
+public override void OnDropped(PlayerDroppedItemEventArgs ev)
+{
+    ev.Pickup.Scale = new Vector3(1.5f, 1.5f, 1.5f);
+}
+```
+
+## Selection lifecycle
+
+### OnSelecting
+
+Fired when a player is about to select (equip) an item.
+
+**When it fires:**
+- Before the item becomes the active held item
+- When switching to this item
+
+**What you can do:**
+- Cancel selection by setting `ev.IsAllowed = false`
+- Apply selection requirements
+- Start visual or audio effects
+
+**Example:**
+
+```csharp
+public override void OnSelecting(PlayerChangingItemEventArgs ev)
+{
+    ev.Player.ShowHint($"Selecting {Name}...", 1f);
+}
+```
+
+### OnSelected
+
+Fired after an item has been selected.
+
+**When it fires:**
+- After the item is the active held item
+- After the selection animation starts
+
+**What you can do:**
+- Grant temporary effects while held
+- Update UI or hints
+- Start continuous effects
+
+**Example:**
+
+```csharp
+public override void OnSelected(PlayerChangedItemEventArgs ev)
+{
+    ev.Player.EnableEffect(EffectType.MovementBoost, 10f);
+}
+```
+
+### OnUnselecting
+
+Fired when a player is about to unselect (unequip) an item.
+
+**When it fires:**
+- Before switching away from this item
+- When selecting a different item or holstering
+
+**Example:**
+
+```csharp
+public override void OnUnselecting(PlayerChangingItemEventArgs ev)
+{
+    // Cleanup or warnings before unselecting
+}
+```
+
+### OnUnselected
+
+Fired after an item has been unselected.
+
+**When it fires:**
+- After the item is no longer the active held item
+
+**What you can do:**
+- Remove temporary effects
+- Clean up resources
+- Stop continuous effects
+
+**Example:**
+
+```csharp
+public override void OnUnselected(PlayerChangedItemEventArgs ev)
+{
+    ev.Player.DisableEffect(EffectType.MovementBoost);
+}
+```
+
+## The Check() method pattern
+
+The `Check()` method is essential when working with server events (like explosions or projectiles) where multiple items might trigger the same event.
+
+**Available overloads:**
+
+```csharp
+public bool Check(ushort serial)
+public bool Check(Pickup pickup)
+public bool Check(Item item)
+public bool Check(Player player)
+```
+
+These methods verify that an item belongs to your custom item type by checking its serial number against the internal registry.
+
+**Example with server events:**
+
+```csharp
+using LabApi.Events.Handlers;
+using LabApi.Events.Arguments.ServerEvents;
+
+public class EMPGrenade : CustomItem
+{
+    public override string Name => "EMP Grenade";
+    public override ItemType Type => ItemType.GrenadeHE;
+    
+    public override void OnRegistered()
+    {
+        ServerEvents.ProjectileExploding += OnExplosion;
+    }
+    
+    public override void OnUnregistered()
+    {
+        ServerEvents.ProjectileExploding -= OnExplosion;
+    }
+    
+    private void OnExplosion(ProjectileExplodingEventArgs ev)
+    {
+        // Check if this grenade is our custom EMP grenade
+        if (!Check(ev.TimedGrenade)) return;
+        
+        // This is our EMP grenade - apply custom effects
+        ev.IsAllowed = false;
+        Room room = ev.TimedGrenade.Room;
+        room.LightController.FlickerLights(10);
+    }
+}
+```
+
+**Why use Check():**
+- Prevents your event handler from processing all grenades/projectiles
+- Ensures type safety when dealing with base game events
+- Avoids conflicts with other plugins or items
+
+## Best practices
+
+### Always validate player state
+
+```csharp
+public override void OnUsing(PlayerUsingItemEventArgs ev)
+{
+    if (!ev.Player.IsAlive)
+        return;
+    
+    // Safe to proceed
+}
+```
+
+### Use Check() for server events
+
+```csharp
+private void OnProjectileExploding(ProjectileExplodingEventArgs ev)
+{
+    // Always check if this is your custom item
+    if (!Check(ev.TimedGrenade)) return;
+    
+    // Process custom behavior
+}
+```
+
+### Clean up event subscriptions
+
+```csharp
+public override void OnRegistered()
+{
+    ServerEvents.ProjectileExploding += OnExplosion;
+}
+
+public override void OnUnregistered()
+{
+    // Always unsubscribe to prevent memory leaks
+    ServerEvents.ProjectileExploding -= OnExplosion;
+}
+```
+
+### Use coroutines for delayed effects
+
+```csharp
+using MEC;
+using System.Collections.Generic;
+
+public override void OnUsing(PlayerUsingItemEventArgs ev)
+{
+    Timing.RunCoroutine(DelayedEffect(ev.Player));
+}
+
+private IEnumerator<float> DelayedEffect(Player player)
+{
+    yield return Timing.WaitForSeconds(2f);
+    if (player.IsAlive)
+    {
+        player.Heal(50);
+    }
+}
+```
+
+### Handle cancellation properly
+
+```csharp
+public override void OnDropping(PlayerDroppingItemEventArgs ev)
+{
+    if (ShouldPreventDrop(ev.Player))
+    {
+        ev.IsAllowed = false;
+        ev.Player.ShowHint("Cannot drop this item right now!", 2f);
+        return; // Early return after cancellation
+    }
+    
+    // Additional logic only runs if drop is allowed
+}
+```
+
+## Common patterns
+
+### Consumable with effects
+
+```csharp
+public override void OnUsing(PlayerUsingItemEventArgs ev)
+{
+    ev.Player.Heal(100);
+    ev.Player.EnableEffect(EffectType.MovementBoost, 10f);
+    ev.Player.ShowHint("You feel refreshed!", 3f);
+}
+```
+
+### Item with持续 持续effects while held
+
+```csharp
+public override void OnSelected(PlayerChangedItemEventArgs ev)
+{
+    ev.Player.EnableEffect(EffectType.DamageReduction, 255f);
+}
+
+public override void OnUnselected(PlayerChangedItemEventArgs ev)
+{
+    ev.Player.DisableEffect(EffectType.DamageReduction);
+}
+```
+
+### Restricted pickup
+
+```csharp
+public override void OnPickingUp(PlayerPickingUpItemEventArgs ev)
+{
+    if (ev.Player.Role != RoleTypeId.Scientist)
+    {
+        ev.IsAllowed = false;
+        ev.Player.ShowHint("Only scientists can pick up this item!", 3f);
+    }
+}
+```

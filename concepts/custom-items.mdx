@@ -1,0 +1,275 @@
+---
+title: Custom items
+description: Learn about the CustomItem base class, required properties, lifecycle methods, and how to create your own custom items
+---
+
+## Overview
+
+Every custom item in the framework inherits from the `CustomItem` abstract class. This class defines the contract for how custom items behave, what properties they must have, and what events they can respond to.
+
+## The CustomItem class
+
+Here's the complete `CustomItem` base class:
+
+```csharp CustomItem.cs:6-38
+public abstract class CustomItem
+{
+    public ushort Id { get; internal set; }
+
+    public abstract string Name { get; }
+    public abstract string Description { get; }
+    public abstract ItemType Type { get; }
+    public virtual float Weight => 1.0f;
+
+    public virtual bool ShowItemHints => true;
+    public virtual bool ShowPickupHints => true;
+    public virtual bool ShowSelectedHints => true;
+
+    public abstract void OnRegistered();
+    public abstract void OnUnregistered();
+
+    public bool Check(ushort serial) => CustomItems.CurrentItems.ContainsKey(serial) && CustomItems.CurrentItems[serial].Id == Id;
+    public bool Check(Pickup? pickup) => pickup is not null && Check(pickup.Serial);
+    public bool Check(Item? item) => item is not null && Check(item.Serial);
+    public bool Check(Player? player) => player is not null && Check(player.CurrentItem);
+
+    public virtual void OnUsing(PlayerUsingItemEventArgs ev) { }
+    public virtual void OnUsed(PlayerUsedItemEventArgs ev) { }
+    public virtual void OnDropping(PlayerDroppingItemEventArgs ev) { }
+    public virtual void OnDropped(PlayerDroppedItemEventArgs ev) { }
+    public virtual void OnPickingUp(PlayerPickingUpItemEventArgs ev) { }
+    public virtual void OnPickedUp(PlayerPickedUpItemEventArgs ev) { }
+    public virtual void OnSelecting(PlayerChangingItemEventArgs ev) { }
+    public virtual void OnUnselecting(PlayerChangingItemEventArgs ev) { }
+    public virtual void OnSelected(PlayerChangedItemEventArgs ev) { }
+    public virtual void OnUnselected(PlayerChangedItemEventArgs ev) { }
+}
+```
+
+## Required properties
+
+Every custom item must implement these abstract properties:
+
+### Name
+
+```csharp
+public abstract string Name { get; }
+```
+
+The display name of your custom item. This name is:
+- Used for registration (must be unique)
+- Shown to players in hints
+- Used for lookup operations
+
+<Warning>
+Item names must be unique across all registered custom items. Attempting to register a duplicate name will throw an `InvalidOperationException`.
+</Warning>
+
+### Description
+
+```csharp
+public abstract string Description { get; }
+```
+
+A brief description of what the item does. Displayed to players when they pick up or select the item.
+
+### Type
+
+```csharp
+public abstract ItemType Type { get; }
+```
+
+The base game item type this custom item is based on. This determines:
+- The item's appearance and model
+- Base behavior (can it be used, thrown, etc.)
+- Which inventory slot it occupies
+
+Common types include:
+- `ItemType.Adrenaline` - Usable items
+- `ItemType.Medkit` - Medical items
+- `ItemType.GrenadeHE` - Throwable grenades
+- `ItemType.Coin` - Small collectibles
+
+## Optional properties
+
+### Weight
+
+```csharp
+public virtual float Weight => 1.0f;
+```
+
+The item's weight, affecting player movement speed. Default is `1.0f`.
+
+### Hint settings
+
+```csharp
+public virtual bool ShowItemHints => true;
+public virtual bool ShowPickupHints => true;
+public virtual bool ShowSelectedHints => true;
+```
+
+Control when players see hints about the item:
+- `ShowItemHints`: Master toggle for all hints
+- `ShowPickupHints`: Show hint when picking up the item
+- `ShowSelectedHints`: Show hint when selecting the item from inventory
+
+## Lifecycle methods
+
+### OnRegistered
+
+```csharp
+public abstract void OnRegistered();
+```
+
+Called when the item is successfully registered with the framework. Use this to:
+- Subscribe to additional LabAPI events
+- Initialize resources
+- Set up configurations
+
+**Example from EMPGrenade:**
+
+```csharp EMPGrenade.cs:18-21
+public override void OnRegistered()
+{
+    ServerEvents.ProjectileExploding += OnExplosion;
+}
+```
+
+### OnUnregistered
+
+```csharp
+public abstract void OnUnregistered();
+```
+
+Called when the item is unregistered (usually during plugin disable). Use this to:
+- Unsubscribe from events
+- Clean up resources
+- Save data
+
+**Example from EMPGrenade:**
+
+```csharp EMPGrenade.cs:23-26
+public override void OnUnregistered()
+{
+    ServerEvents.ProjectileExploding -= OnExplosion;
+}
+```
+
+<Warning>
+Always unsubscribe from events in `OnUnregistered()` to prevent memory leaks and errors after plugin reload.
+</Warning>
+
+## Helper methods
+
+The `CustomItem` class provides helper methods for checking if an item belongs to this custom item type:
+
+```csharp
+public bool Check(ushort serial)
+public bool Check(Pickup? pickup)
+public bool Check(Item? item)
+public bool Check(Player? player)
+```
+
+These are useful when you need to verify an item in event handlers:
+
+```csharp
+private void OnExplosion(ProjectileExplodingEventArgs ev)
+{
+    if (!Check(ev.TimedGrenade)) return;
+    // This is our custom item!
+}
+```
+
+## Creating a custom item
+
+Here's a complete example of a healing syringe:
+
+```csharp HealingSyringe.cs:12-49
+public class HealingSyringe : CustomItem
+{
+    public override string Name => "Healing Syringe";
+
+    public override string Description => "Applies gradual healing to the user.";
+
+    public override ItemType Type => ItemType.Adrenaline;
+
+    public override void OnRegistered() { }
+
+    public override void OnUnregistered() { }
+
+
+    public override void OnUsing(PlayerUsingItemEventArgs ev)
+    {
+        const float initialDelay = 1.5f;
+        const float duration = 5f;
+        const float tickRate = 1f;
+        const int healPerTick = 10;
+
+        Timing.RunCoroutine(HealOverTime(ev.Player, initialDelay, duration, tickRate, healPerTick));
+
+        ev.Player.RemoveItem(ev.UsableItem);
+    }
+
+    private IEnumerator<float> HealOverTime(Player player, float initialDelay, float duration, float tickRate, int healPerTick)
+    {
+        yield return Timing.WaitForSeconds(initialDelay);
+        float elapsed = 0f;
+        while (elapsed < duration)
+        {
+            if (player.IsAlive)
+                player.Heal(healPerTick);
+            elapsed += tickRate;
+            yield return Timing.WaitForSeconds(tickRate);
+        }
+    }
+}
+```
+
+## Best practices
+
+<AccordionGroup>
+  <Accordion title="Use descriptive names and descriptions">
+    Players will see these in hints, so make them clear and concise.
+    
+    ```csharp
+    public override string Name => "Emergency Medical Kit";
+    public override string Description => "Heals 50 HP instantly";
+    ```
+  </Accordion>
+
+  <Accordion title="Choose appropriate base types">
+    Select a base `ItemType` that matches your item's behavior:
+    - Consumables: `Adrenaline`, `Medkit`, `Painkillers`
+    - Throwables: `GrenadeHE`, `GrenadeFlash`
+    - Tools: `Flashlight`, `Radio`
+  </Accordion>
+
+  <Accordion title="Clean up in OnUnregistered">
+    Always unsubscribe from events and dispose of resources:
+    
+    ```csharp
+    public override void OnUnregistered()
+    {
+        ServerEvents.SomeEvent -= Handler;
+        Timing.KillCoroutines(_coroutineHandle);
+    }
+    ```
+  </Accordion>
+
+  <Accordion title="Use event arguments to control behavior">
+    Most event arguments have an `IsAllowed` property to cancel actions:
+    
+    ```csharp
+    public override void OnDropping(PlayerDroppingItemEventArgs ev)
+    {
+        ev.IsAllowed = false; // Prevent dropping
+    }
+    ```
+  </Accordion>
+</AccordionGroup>
+
+## Next steps
+
+- Explore the [event system](/concepts/event-system) to learn about all available event hooks
+- Learn how to [register your items](/concepts/registration) with the framework
+- See the [architecture overview](/concepts/architecture) for how everything fits together

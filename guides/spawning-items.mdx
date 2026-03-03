@@ -1,0 +1,394 @@
+---
+title: Spawning items
+description: How to spawn and give custom items in CustomItems LabAPI
+---
+
+This guide covers how to spawn custom items in the world and give them directly to players.
+
+## Getting item IDs
+
+Before spawning or giving items, you need to get the item's ID. Each registered custom item has a unique ID assigned by the API.
+
+### By name
+
+```csharp
+using CustomItems.API;
+
+ushort itemId = CustomItems.GetIdByName("Healing Syringe");
+```
+
+This method throws a `KeyNotFoundException` if the item doesn't exist.
+
+### By ID
+
+```csharp
+CustomItem item = CustomItems.GetById(itemId);
+
+if (item != null)
+{
+    Log.Info($"Found item: {item.Name}");
+}
+else
+{
+    Log.Warn("Item not found!");
+}
+```
+
+Returns `null` if the item ID is not registered.
+
+## Spawning items in the world
+
+Use `TrySpawn()` to create item pickups at specific positions in the world.
+
+### Basic spawning
+
+```csharp
+using UnityEngine;
+using LabApi.Features.Wrappers;
+
+ushort itemId = CustomItems.GetIdByName("EMP Grenade");
+Vector3 position = new Vector3(0, 2, 0);
+
+if (CustomItems.TrySpawn(itemId, position, out Pickup pickup))
+{
+    Log.Info($"Spawned item at {position} with serial {pickup.Serial}");
+}
+else
+{
+    Log.Error("Failed to spawn item!");
+}
+```
+
+### Method signature
+
+```csharp
+public static bool TrySpawn(ushort id, Vector3 position, out Pickup pickup)
+```
+
+**Parameters:**
+- `id` - The custom item's ID
+- `position` - World position to spawn the pickup
+- `pickup` - Outputs the created Pickup object if successful
+
+**Returns:**
+- `true` if the item was spawned successfully
+- `false` if the item ID doesn't exist or spawning failed
+
+### Spawning in a specific room
+
+You can spawn items at random positions within a room using `GetRandomPositionInRoom()`:
+
+```csharp
+using LabApi.Features.Wrappers;
+
+Room room = Room.Get("LCZ_ClassDSpawn");
+
+if (room != null)
+{
+    Vector3 position = CustomItems.GetRandomPositionInRoom(room);
+    
+    ushort itemId = CustomItems.GetIdByName("EMP Grenade");
+    
+    if (CustomItems.TrySpawn(itemId, position, out Pickup pickup))
+    {
+        Log.Info($"Spawned item in {room.Name}");
+    }
+}
+```
+
+### GetRandomPositionInRoom() details
+
+```csharp
+public static Vector3 GetRandomPositionInRoom(Room room)
+```
+
+This method attempts to find a valid position within a room's bounds using raycasting and collision detection.
+
+**Important notes:**
+- May rarely return a position behind a wall that's unreachable
+- Attempts up to 100 times to find a valid position
+- Falls back to the room center if no valid position is found
+- Returns `Vector3.zero` if the room is destroyed or invalid
+
+**Example with error handling:**
+
+```csharp
+Vector3 position = CustomItems.GetRandomPositionInRoom(room);
+
+if (position == Vector3.zero)
+{
+    Log.Warn($"Failed to find valid position in {room.Name}");
+    return;
+}
+
+CustomItems.TrySpawn(itemId, position, out Pickup pickup);
+```
+
+## Giving items to players
+
+Use `TryGive()` to add items directly to a player's inventory.
+
+### Basic giving
+
+```csharp
+using LabApi.Features.Wrappers;
+
+Player player = Player.Get("PlayerName");
+ushort itemId = CustomItems.GetIdByName("Healing Syringe");
+
+if (CustomItems.TryGive(itemId, player, out Item item))
+{
+    Log.Info($"Gave item to {player.Nickname} with serial {item.Serial}");
+}
+else
+{
+    Log.Error("Failed to give item!");
+}
+```
+
+### Method signature
+
+```csharp
+public static bool TryGive(ushort id, Player player, out Item item, ItemAddReason addReason = ItemAddReason.Undefined)
+```
+
+**Parameters:**
+- `id` - The custom item's ID
+- `player` - The player to give the item to
+- `item` - Outputs the created Item object if successful
+- `addReason` - Optional reason for adding the item (default: `ItemAddReason.Undefined`)
+
+**Returns:**
+- `true` if the item was given successfully
+- `false` if the item ID doesn't exist, player is invalid, or giving failed
+
+### With ItemAddReason
+
+You can specify why the item is being added:
+
+```csharp
+using InventorySystem.Items;
+
+if (CustomItems.TryGive(itemId, player, out Item item, ItemAddReason.Pickup))
+{
+    Log.Info("Item added as if picked up");
+}
+```
+
+**Common ItemAddReason values:**
+- `ItemAddReason.Undefined`
+- `ItemAddReason.Pickup`
+- `ItemAddReason.AdminCommand`
+
+## Spawning at random positions
+
+You can spawn items at completely random positions across the facility:
+
+```csharp
+// Get a random position in any room
+Vector3 randomPosition = CustomItems.GetRandomPosition();
+
+ushort itemId = CustomItems.GetIdByName("EMP Grenade");
+
+if (CustomItems.TrySpawn(itemId, randomPosition, out Pickup pickup))
+{
+    Log.Info("Spawned item at random location");
+}
+```
+
+### GetRandomPosition() details
+
+```csharp
+public static Vector3 GetRandomPosition()
+```
+
+This method:
+- Selects a random room from all non-destroyed rooms
+- Returns a position at the room's location
+- Returns `Vector3.zero` if no valid position can be found
+
+## Bulk spawning
+
+Spawn multiple items at once:
+
+```csharp
+ushort itemId = CustomItems.GetIdByName("Healing Syringe");
+int spawnCount = 5;
+
+foreach (var room in Room.List.Where(r => !r.IsDestroyed))
+{
+    Vector3 position = CustomItems.GetRandomPositionInRoom(room);
+    
+    if (position != Vector3.zero)
+    {
+        CustomItems.TrySpawn(itemId, position, out _);
+    }
+}
+
+Log.Info($"Spawned items in {spawnCount} rooms");
+```
+
+## Giving to multiple players
+
+```csharp
+ushort itemId = CustomItems.GetIdByName("EMP Grenade");
+
+foreach (var player in Player.List.Where(p => p.IsAlive))
+{
+    if (CustomItems.TryGive(itemId, player, out Item item))
+    {
+        player.ShowHint($"You received {item.Type}!", 3f);
+    }
+}
+```
+
+## Practical examples
+
+### Spawn on round start
+
+```csharp
+using LabApi.Events.Handlers;
+using LabApi.Events.Arguments.ServerEvents;
+
+public class MyPlugin : Plugin
+{
+    public override void Enable()
+    {
+        ServerEvents.RoundStarted += OnRoundStart;
+    }
+    
+    private void OnRoundStart(RoundStartedEventArgs ev)
+    {
+        ushort itemId = CustomItems.GetIdByName("EMP Grenade");
+        
+        // Spawn in 10 random rooms
+        var rooms = Room.List.Where(r => !r.IsDestroyed).Take(10);
+        
+        foreach (var room in rooms)
+        {
+            Vector3 position = CustomItems.GetRandomPositionInRoom(room);
+            CustomItems.TrySpawn(itemId, position, out _);
+        }
+        
+        Log.Info("Spawned EMP Grenades in 10 rooms");
+    }
+}
+```
+
+### Give on spawn
+
+```csharp
+using LabApi.Events.Handlers;
+using LabApi.Events.Arguments.PlayerEvents;
+
+public class MyPlugin : Plugin
+{
+    public override void Enable()
+    {
+        PlayerEvents.Spawned += OnPlayerSpawn;
+    }
+    
+    private void OnPlayerSpawn(PlayerSpawnedEventArgs ev)
+    {
+        // Give scientists a healing syringe
+        if (ev.Player.Role == RoleTypeId.Scientist)
+        {
+            ushort itemId = CustomItems.GetIdByName("Healing Syringe");
+            
+            if (CustomItems.TryGive(itemId, ev.Player, out Item item))
+            {
+                ev.Player.ShowHint("You received a Healing Syringe!", 3f);
+            }
+        }
+    }
+}
+```
+
+### Spawn at player position
+
+```csharp
+ushort itemId = CustomItems.GetIdByName("EMP Grenade");
+Player player = Player.Get("PlayerName");
+
+// Spawn slightly above player
+Vector3 spawnPosition = player.Position + Vector3.up * 2f;
+
+if (CustomItems.TrySpawn(itemId, spawnPosition, out Pickup pickup))
+{
+    player.ShowHint("Item spawned above you!", 2f);
+}
+```
+
+### Replace picked up item
+
+```csharp
+using LabApi.Events.Arguments.PlayerEvents;
+
+public override void OnPickingUp(PlayerPickingUpItemEventArgs ev)
+{
+    // Cancel normal pickup
+    ev.IsAllowed = false;
+    
+    // Give custom item instead
+    ushort customId = CustomItems.GetIdByName("Healing Syringe");
+    
+    if (CustomItems.TryGive(customId, ev.Player, out Item item))
+    {
+        ev.Player.ShowHint("You picked up a special item!", 2f);
+    }
+}
+```
+
+## Best practices
+
+### Always check return values
+
+```csharp
+if (!CustomItems.TrySpawn(itemId, position, out Pickup pickup))
+{
+    Log.Warn("Failed to spawn item - check if ID is valid");
+    return;
+}
+
+// Safe to use pickup here
+```
+
+### Validate positions
+
+```csharp
+Vector3 position = CustomItems.GetRandomPositionInRoom(room);
+
+if (position == Vector3.zero)
+{
+    Log.Warn("Invalid position - using fallback");
+    position = room.Position + Vector3.up * 2f;
+}
+
+CustomItems.TrySpawn(itemId, position, out _);
+```
+
+### Handle missing items gracefully
+
+```csharp
+try
+{
+    ushort itemId = CustomItems.GetIdByName("NonexistentItem");
+}
+catch (KeyNotFoundException)
+{
+    Log.Error("Item not found - make sure it's registered");
+    return;
+}
+```
+
+### Check player inventory space
+
+```csharp
+if (player.Items.Count >= 8)
+{
+    player.ShowHint("Your inventory is full!", 2f);
+    return;
+}
+
+CustomItems.TryGive(itemId, player, out _);
+```

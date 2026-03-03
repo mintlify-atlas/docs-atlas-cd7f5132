@@ -1,0 +1,111 @@
+---
+title: Spawning Methods
+description: Methods for spawning pickups and giving items to players
+---
+
+The spawning utilities provide methods to create custom items either as world pickups or directly in a player's inventory.
+
+## TrySpawn
+
+Spawns a custom item as a pickup at a specific world position.
+
+```csharp
+public static bool TrySpawn(ushort id, Vector3 position, out Pickup pickup)
+```
+
+### Parameters
+
+<ParamField path="id" type="ushort" required>
+  The unique identifier of the custom item to spawn
+</ParamField>
+
+<ParamField path="position" type="Vector3" required>
+  The world position where the pickup should be spawned
+</ParamField>
+
+<ParamField path="pickup" type="Pickup" required>
+  When this method returns, contains the spawned Pickup object if successful, or null if the spawn failed
+</ParamField>
+
+### Returns
+
+`true` if the item was successfully spawned; otherwise, `false`.
+
+### Behavior
+
+1. Validates that a custom item with the specified ID exists in the registry
+2. Creates a pickup at the specified position using the item's base type
+3. Sets the pickup's weight to match the custom item's weight
+4. Registers the pickup in the CurrentItems dictionary with a new instance of the custom item
+5. Spawns the pickup on the network using NetworkServer
+6. Logs the spawn event with the item name, ID, position, and serial number
+
+### Example
+
+```csharp
+if (CustomItems.TrySpawn(1001, new Vector3(0, 5, 0), out Pickup pickup))
+{
+    Log.Info($"Successfully spawned pickup with serial {pickup.Serial}");
+}
+else
+{
+    Log.Error("Failed to spawn custom item - ID not found");
+}
+```
+
+## TryGive
+
+Gives a custom item directly to a player's inventory.
+
+```csharp
+public static bool TryGive(ushort id, Player player, out Item item, ItemAddReason addReason = ItemAddReason.Undefined)
+```
+
+### Parameters
+
+<ParamField path="id" type="ushort" required>
+  The unique identifier of the custom item to give
+</ParamField>
+
+<ParamField path="player" type="Player" required>
+  The player who will receive the item
+</ParamField>
+
+<ParamField path="item" type="Item" required>
+  When this method returns, contains the Item object that was added to the player's inventory if successful, or null if the operation failed
+</ParamField>
+
+<ParamField path="addReason" type="ItemAddReason" default="ItemAddReason.Undefined">
+  The reason for adding the item, used for tracking and event handling
+</ParamField>
+
+### Returns
+
+`true` if the item was successfully given to the player; otherwise, `false`.
+
+### Behavior
+
+1. Validates that a custom item with the specified ID exists in the registry
+2. Adds the item to the player's inventory using the item's base type
+3. Registers the item in the CurrentItems dictionary with a new instance of the custom item
+4. Logs the give event with the item name, ID, player nickname, and serial number
+
+### Example
+
+```csharp
+if (CustomItems.TryGive(1001, player, out Item item, ItemAddReason.AdminCommand))
+{
+    Log.Info($"Gave {player.Nickname} item with serial {item.Serial}");
+}
+else
+{
+    Log.Error("Failed to give custom item - ID not found or inventory full");
+}
+```
+
+### Notes
+
+- Both methods create a new instance of the custom item class using `Activator.CreateInstance`
+- The spawned/given items are automatically tracked in the `CurrentItems` dictionary by their serial number
+- If the custom item ID is not registered, the methods return `false` immediately
+- For `TryGive`, if the player's inventory is full or the item cannot be added for any reason, the method returns `false`

@@ -1,0 +1,295 @@
+---
+title: Configuration
+description: Plugin configuration options for CustomItems LabAPI
+---
+
+CustomItems LabAPI provides configuration options to control plugin behavior and debugging features.
+
+## Configuration file
+
+The configuration is stored in `config.yml` in your plugin's configuration directory. The file is automatically created when the plugin first loads.
+
+## Available options
+
+### Debug
+
+Enables debug logging for CustomItems LabAPI.
+
+```yaml
+Debug: false
+```
+
+**Type:** `bool`  
+**Default:** `false`
+
+**When enabled:**
+- Logs item registration and unregistration
+- Logs spawning and giving operations with serial numbers
+- Logs custom item events (usage, pickup, drop, etc.)
+- Shows detailed information about item interactions
+
+**Example debug output:**
+```
+[DEBUG] Registered item 'EMP Grenade' with ID 0 and type GrenadeHE.
+[DEBUG] Spawned item 'EMP Grenade' (0) at (10.5, 2.0, 15.3) with serial 1234.
+[DEBUG] EMP Grenade exploded at (10.5, 2.0, 15.3) in room LCZ_Crossing.
+```
+
+**Usage:**
+```csharp
+if (CustomItemsPlugin.Instance.Config.Debug)
+{
+    Log.Debug("Custom debug message");
+}
+```
+
+### TestItemSpawning
+
+Spawns a test item in every room at round start for debugging purposes.
+
+```yaml
+TestItemSpawning: false
+```
+
+**Type:** `bool`  
+**Default:** `false`
+
+<Warning>
+**DO NOT ENABLE IN PRODUCTION!** This is purely for debugging and will spawn items in every single room, which can cause performance issues and gameplay disruption.
+</Warning>
+
+**When enabled:**
+- Spawns a test item in every non-destroyed room
+- Uses `GetRandomPositionInRoom()` for each spawn
+- Runs automatically at round start
+- Useful for testing item appearance and spawn mechanics
+
+**Use cases:**
+- Testing item models and appearances
+- Verifying spawn position algorithms
+- Debugging item visibility and hints
+- Checking item physics and collisions
+
+### EnableExampleItems
+
+Registers the example items included with CustomItems LabAPI.
+
+```yaml
+EnableExampleItems: true
+```
+
+**Type:** `bool`  
+**Default:** `true`
+
+**When enabled:**
+- Automatically registers all example items from `CustomItems.API.Example` namespace
+- Items are registered using `CustomItems.RegisterAll()` during plugin enable
+- Items are unregistered during plugin disable
+
+**Example items included:**
+- **EMP Grenade** - Locks doors and flickers lights in the room where it explodes
+- **Healing Syringe** - Applies gradual healing over time when used
+
+**When to disable:**
+- When you want to use only your custom items
+- In production servers where example items aren't needed
+- When testing your own items without interference
+
+## Complete configuration example
+
+```yaml
+# Enable debug logging
+Debug: true
+
+# DO NOT enable in production - spawns test items in every room
+TestItemSpawning: false
+
+# Register example items (EMP Grenade, Healing Syringe)
+EnableExampleItems: true
+```
+
+## Loading configuration in your plugin
+
+If you're creating a plugin that uses CustomItems LabAPI, you can access the configuration:
+
+```csharp
+using CustomItems;
+
+public class MyPlugin : Plugin
+{
+    public override void Enable()
+    {
+        // Access CustomItems configuration
+        bool debugEnabled = CustomItemsPlugin.Instance.Config.Debug;
+        
+        if (debugEnabled)
+        {
+            Log.Debug("CustomItems debug mode is enabled");
+        }
+        
+        // Check if example items are enabled
+        if (CustomItemsPlugin.Instance.Config.EnableExampleItems)
+        {
+            Log.Info("Example items are available");
+        }
+    }
+}
+```
+
+## Creating custom configuration
+
+For your own plugin using CustomItems LabAPI, you can create a custom configuration class:
+
+```csharp
+using System.ComponentModel;
+using LabApi.Loader.Features.Plugins;
+
+public class MyItemsConfig
+{
+    [Description("Enable custom item spawning")]
+    public bool EnableSpawning { get; set; } = true;
+    
+    [Description("Number of items to spawn per round")]
+    public int SpawnCount { get; set; } = 5;
+    
+    [Description("List of rooms where items can spawn")]
+    public List<string> AllowedRooms { get; set; } = new()
+    {
+        "LCZ_ClassDSpawn",
+        "HCZ_Armory",
+        "EZ_Intercom"
+    };
+}
+
+public class MyPlugin : Plugin
+{
+    public MyItemsConfig Config { get; private set; }
+    
+    public override void LoadConfigs()
+    {
+        base.LoadConfigs();
+        
+        if (!this.TryLoadConfig("my_items_config.yml", out Config))
+        {
+            Log.Error("Failed to load configuration!");
+        }
+    }
+    
+    public override void Enable()
+    {
+        if (Config.EnableSpawning)
+        {
+            Log.Info($"Will spawn {Config.SpawnCount} items per round");
+        }
+    }
+}
+```
+
+## Configuration best practices
+
+### Use descriptive names
+
+```csharp
+public class CustomItemsConfig
+{
+    [Description("Enable debug logging for item operations")]
+    public bool Debug { get; set; } = false;
+    
+    [Description("Maximum number of custom items a player can hold")]
+    public int MaxItemsPerPlayer { get; set; } = 3;
+}
+```
+
+### Provide sensible defaults
+
+```csharp
+// Good: Safe default that won't break gameplay
+public bool EnableSpawning { get; set; } = false;
+
+// Bad: Dangerous default that could cause issues
+public bool SpawnInEveryRoom { get; set; } = true;
+```
+
+### Add descriptions for clarity
+
+```csharp
+[Description("PURELY FOR DEBUGGING! DO NOT ENABLE IN PRODUCTION!")]
+public bool TestItemSpawning { get; set; } = false;
+```
+
+### Validate configuration values
+
+```csharp
+public override void LoadConfigs()
+{
+    base.LoadConfigs();
+    
+    if (!this.TryLoadConfig("config.yml", out Config))
+    {
+        Log.Error("Invalid configuration!");
+        Config = new MyItemsConfig(); // Use defaults
+    }
+    
+    // Validate ranges
+    if (Config.SpawnCount < 0)
+    {
+        Log.Warn("SpawnCount cannot be negative, using 0");
+        Config.SpawnCount = 0;
+    }
+    
+    if (Config.SpawnCount > 100)
+    {
+        Log.Warn("SpawnCount too high, capping at 100");
+        Config.SpawnCount = 100;
+    }
+}
+```
+
+## Troubleshooting
+
+### Configuration not loading
+
+If your configuration isn't loading:
+
+1. Check that `LoadConfigs()` is being called before `Enable()`
+2. Verify the YAML syntax is correct
+3. Enable debug mode to see detailed loading information
+4. Check file permissions on the config directory
+
+### Invalid configuration values
+
+```csharp
+public override void LoadConfigs()
+{
+    base.LoadConfigs();
+    
+    if (!this.TryLoadConfig("config.yml", out Config))
+    {
+        Log.Error("Failed to load config - using defaults");
+        Config = new CustomItemsConfig();
+        _hasIncorrectSettings = true;
+    }
+}
+
+public override void Enable()
+{
+    if (_hasIncorrectSettings)
+    {
+        Log.Warn("Plugin running with default configuration due to errors");
+    }
+}
+```
+
+### Debug mode not working
+
+Ensure you're using the `Log.Debug()` method and that debug mode is enabled:
+
+```csharp
+if (CustomItemsPlugin.Instance.Config.Debug)
+{
+    Log.Debug("This message will only appear when Debug is true");
+}
+
+// Or use directly (will respect global debug settings)
+Log.Debug("Debug message");
+```

@@ -1,0 +1,233 @@
+---
+title: EventHandler
+description: "Internal event handler that routes LabAPI events to custom items"
+---
+
+`EventHandler` is an internal class that bridges LabAPI player events to custom item event hooks. It automatically detects when players interact with custom items and routes the events to the appropriate `CustomItem` event handlers.
+
+<Note>
+This class is internal to the CustomItems framework. You typically don't need to interact with it directly - it works automatically when you register custom items.
+</Note>
+
+## Overview
+
+The `EventHandler` class extends `CustomEventsHandler` from LabAPI and implements the following functionality:
+
+1. **Event Detection**: Checks if items involved in player events are custom items by looking them up in `CustomItems.CurrentItems`
+2. **Event Routing**: Calls the appropriate event hook method on the custom item instance
+3. **Hint Display**: Automatically shows hints to players when they pick up or select custom items (respects `ShowItemHints`, `ShowPickupHints`, and `ShowSelectedHints` settings)
+4. **Cleanup**: Clears all active custom items when the server starts waiting for players
+
+## Event Flow
+
+When a player interacts with an item, the following occurs:
+
+1. LabAPI fires a player event (e.g., `OnPlayerUsingItem`)
+2. `EventHandler` checks if the item's serial number exists in `CustomItems.CurrentItems`
+3. If found, it retrieves the corresponding `CustomItem` instance
+4. The appropriate event hook method is called on the custom item (e.g., `OnUsing()`)
+5. Additional behaviors like hint display are handled automatically
+
+## Handled Events
+
+The `EventHandler` intercepts and routes the following LabAPI events:
+
+### Item Usage Events
+
+<CodeGroup>
+```csharp OnPlayerUsingItem
+public override void OnPlayerUsingItem(PlayerUsingItemEventArgs ev)
+```
+
+```csharp OnPlayerUsedItem
+public override void OnPlayerUsedItem(PlayerUsedItemEventArgs ev)
+```
+</CodeGroup>
+
+Routes to `CustomItem.OnUsing()` and `CustomItem.OnUsed()` respectively.
+
+### Item Drop Events
+
+<CodeGroup>
+```csharp OnPlayerDroppingItem
+public override void OnPlayerDroppingItem(PlayerDroppingItemEventArgs ev)
+```
+
+```csharp OnPlayerDroppedItem
+public override void OnPlayerDroppedItem(PlayerDroppedItemEventArgs ev)
+```
+</CodeGroup>
+
+Routes to `CustomItem.OnDropping()` and `CustomItem.OnDropped()` respectively.
+
+### Item Pickup Events
+
+<CodeGroup>
+```csharp OnPlayerPickingUpItem
+public override void OnPlayerPickingUpItem(PlayerPickingUpItemEventArgs ev)
+```
+
+```csharp OnPlayerPickedUpItem
+public override void OnPlayerPickedUpItem(PlayerPickedUpItemEventArgs ev)
+```
+</CodeGroup>
+
+Routes to `CustomItem.OnPickingUp()` and `CustomItem.OnPickedUp()` respectively.
+
+**Special Behavior:** When a player picks up a custom item, a hint is automatically displayed showing the item's name and description (if `ShowItemHints` and `ShowPickupHints` are both true).
+
+### Item Selection Events
+
+<CodeGroup>
+```csharp OnPlayerChangingItem
+public override void OnPlayerChangingItem(PlayerChangingItemEventArgs ev)
+```
+
+```csharp OnPlayerChangedItem
+public override void OnPlayerChangedItemEventArgs ev)
+```
+</CodeGroup>
+
+Routes to `CustomItem.OnSelecting()`, `CustomItem.OnUnselecting()`, `CustomItem.OnSelected()`, and `CustomItem.OnUnselected()` as appropriate.
+
+**Special Behavior:** When a player selects a custom item, a hint is automatically displayed showing the item's name and description (if `ShowItemHints` and `ShowSelectedHints` are both true).
+
+### Server Events
+
+```csharp
+public override void OnServerWaitingForPlayers()
+```
+
+Clears the `CustomItems.CurrentItems` dictionary to remove all tracked custom items from the previous round. Also handles test item spawning if enabled in the plugin configuration.
+
+## Internal Check Method
+
+The handler uses an internal helper method to verify if an item is a custom item:
+
+```csharp
+private bool Check(ushort serial)
+{
+    return API.CustomItems.CurrentItems.ContainsKey(serial);
+}
+```
+
+This method checks if the item's serial number exists in the `CurrentItems` tracking dictionary.
+
+## Automatic Hint Display
+
+The `EventHandler` provides two automatic hint displays:
+
+### Pickup Hint
+
+When `OnPlayerPickedUpItem` is called:
+
+```csharp
+if (!customItem.ShowItemHints || !customItem.ShowPickupHints) return;
+ev.Player.SendHint($"You have picked up {customItem.Name}\n{customItem.Description}");
+```
+
+### Selection Hint
+
+When `OnPlayerChangedItem` is called:
+
+```csharp
+if (!customItem.ShowItemHints || !customItem.ShowSelectedHints) return;
+ev.Player.SendHint($"You have selected {customItem.Name}\n{customItem.Description}");
+```
+
+## Test Item Spawning
+
+If test item spawning is enabled in the plugin configuration (`TestItemSpawning = true`), the `EventHandler` will spawn an instance of the first registered custom item (ID 0) in every room when the server starts:
+
+```csharp
+if (CustomItemsPlugin.Instance.Config.TestItemSpawning)
+{
+    foreach (var room in Room.List)
+    {
+        if (room.IsDestroyed) continue;
+        API.CustomItems.TrySpawn(0, API.CustomItems.GetRandomPositionInRoom(room), out var pickup);
+    }
+}
+```
+
+## Event Handling Example
+
+Here's what happens internally when a player uses a custom item:
+
+```csharp
+// 1. Player presses use button on custom item
+// 2. LabAPI fires OnPlayerUsingItem event
+
+public override void OnPlayerUsingItem(PlayerUsingItemEventArgs ev)
+{
+    // 3. EventHandler checks if this is a custom item
+    if (!Check(ev.UsableItem.Serial)) return;
+    
+    // 4. Retrieves the CustomItem instance and calls its OnUsing hook
+    API.CustomItems.CurrentItems[ev.UsableItem.Serial].OnUsing(ev);
+}
+
+// 5. Your custom item's OnUsing method executes
+// 6. If ev.IsAllowed is false, the usage is cancelled
+// 7. Otherwise, usage continues and OnPlayerUsedItem fires next
+
+public override void OnPlayerUsedItem(PlayerUsedItemEventArgs ev)
+{
+    // 8. Check and route to OnUsed hook
+    if (!Check(ev.UsableItem.Serial)) return;
+    API.CustomItems.CurrentItems[ev.UsableItem.Serial].OnUsed(ev);
+}
+
+// 9. Your custom item's OnUsed method executes
+// 10. Item usage complete
+```
+
+## Selection Event Flow
+
+The selection events are more complex because they handle both the old item being unselected and the new item being selected:
+
+```csharp
+public override void OnPlayerChangingItem(PlayerChangingItemEventArgs ev)
+{
+    // Handle unselecting old item
+    if (ev.OldItem != null && !ev.OldItem.IsDestroyed && Check(ev.OldItem.Serial))
+    {
+        CurrentItems[ev.OldItem.Serial].OnUnselecting(ev);
+        if (!ev.IsAllowed) return; // Selection change was cancelled
+    }
+    
+    // Handle selecting new item
+    if (ev.NewItem != null && !ev.NewItem.IsDestroyed && Check(ev.NewItem.Serial))
+    {
+        CurrentItems[ev.NewItem.Serial].OnSelecting(ev);
+    }
+}
+```
+
+## Integration with Your Plugin
+
+You don't need to manually instantiate or register the `EventHandler`. It's automatically set up by the CustomItems framework when your plugin loads. Simply:
+
+1. Register your custom items using `CustomItems.Register()` or `CustomItems.RegisterAll()`
+2. Override the event hook methods in your `CustomItem` classes
+3. The `EventHandler` will automatically route events to your custom items
+
+**Example:**
+
+```csharp
+public class ExplosiveCandy : CustomItem
+{
+    public override string Name => "Explosive Candy";
+    public override string Description => "Don't eat this!";
+    public override ItemType Type => ItemType.SCP500;
+
+    public override void OnUsed(PlayerUsedItemEventArgs ev)
+    {
+        // EventHandler automatically routes the event here
+        ev.Player.Position.CreateExplosion(ExplosionType.Grenade);
+        ev.Player.Kill("Ate explosive candy");
+    }
+}
+```
+
+When a player uses an Explosive Candy, the `EventHandler` detects it's a custom item and automatically calls your `OnUsed` method.

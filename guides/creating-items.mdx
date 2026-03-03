@@ -1,0 +1,266 @@
+---
+title: Creating custom items
+description: Step-by-step guide to create custom items in CustomItems LabAPI
+---
+
+This guide walks you through creating a custom item from scratch, from defining the class to testing it in-game.
+
+<Steps>
+
+<Step title="Create a custom item class">
+
+Create a new class that inherits from `CustomItem`. You must implement the required abstract properties and methods:
+
+```csharp
+using CustomItems.API;
+using LabApi.Events.Arguments.PlayerEvents;
+
+namespace MyPlugin.Items;
+
+public class HealingSyringe : CustomItem
+{
+    public override string Name => "Healing Syringe";
+    
+    public override string Description => "Applies gradual healing to the user.";
+    
+    public override ItemType Type => ItemType.Adrenaline;
+    
+    public override void OnRegistered() { }
+    
+    public override void OnUnregistered() { }
+}
+```
+
+**Required properties:**
+- `Name` - Unique identifier for your item
+- `Description` - Brief description shown to players
+- `Type` - Base game ItemType to use as a template
+
+**Required methods:**
+- `OnRegistered()` - Called when the item is registered with the API
+- `OnUnregistered()` - Called when the item is unregistered
+
+</Step>
+
+<Step title="Configure optional properties">
+
+Customize additional behavior with optional properties:
+
+```csharp
+public class HeavyItem : CustomItem
+{
+    public override string Name => "Heavy Item";
+    public override string Description => "A very heavy item";
+    public override ItemType Type => ItemType.KeycardMTFCaptain;
+    
+    // Make the item heavier (default is 1.0)
+    public override float Weight => 3.5f;
+    
+    // Control hint visibility
+    public override bool ShowItemHints => true;
+    public override bool ShowPickupHints => true;
+    public override bool ShowSelectedHints => false;
+    
+    public override void OnRegistered() { }
+    public override void OnUnregistered() { }
+}
+```
+
+**Optional properties:**
+- `Weight` - Item weight (default: 1.0)
+- `ShowItemHints` - Show hints when item is in inventory (default: true)
+- `ShowPickupHints` - Show hints for pickups on ground (default: true)
+- `ShowSelectedHints` - Show hints when item is selected (default: true)
+
+</Step>
+
+<Step title="Implement event hooks">
+
+Add custom behavior by overriding event hook methods. These methods are called automatically when players interact with your item:
+
+```csharp
+using MEC;
+using System.Collections.Generic;
+
+public class HealingSyringe : CustomItem
+{
+    public override string Name => "Healing Syringe";
+    public override string Description => "Applies gradual healing to the user.";
+    public override ItemType Type => ItemType.Adrenaline;
+    
+    public override void OnUsing(PlayerUsingItemEventArgs ev)
+    {
+        const float initialDelay = 1.5f;
+        const float duration = 5f;
+        const float tickRate = 1f;
+        const int healPerTick = 10;
+        
+        Timing.RunCoroutine(HealOverTime(ev.Player, initialDelay, duration, tickRate, healPerTick));
+        
+        ev.Player.RemoveItem(ev.UsableItem);
+    }
+    
+    private IEnumerator<float> HealOverTime(Player player, float initialDelay, float duration, float tickRate, int healPerTick)
+    {
+        yield return Timing.WaitForSeconds(initialDelay);
+        float elapsed = 0f;
+        while (elapsed < duration)
+        {
+            if (player.IsAlive)
+                player.Heal(healPerTick);
+            elapsed += tickRate;
+            yield return Timing.WaitForSeconds(tickRate);
+        }
+    }
+    
+    public override void OnRegistered() { }
+    public override void OnUnregistered() { }
+}
+```
+
+See the [event hooks guide](/guides/event-hooks) for all available hooks and when they fire.
+
+</Step>
+
+<Step title="Register your item">
+
+Register your custom item when your plugin loads:
+
+```csharp
+using CustomItems.API;
+
+public class MyPlugin : Plugin
+{
+    public override void Enable()
+    {
+        // Register a single item
+        CustomItems.Register(new HealingSyringe());
+        
+        Log.Info("MyPlugin loaded successfully.");
+    }
+    
+    public override void Disable()
+    {
+        // Unregister when plugin unloads
+        CustomItems.UnregisterAll();
+    }
+}
+```
+
+**Alternative: Register all items automatically**
+
+```csharp
+public override void Enable()
+{
+    // Automatically finds and registers all CustomItem classes in your assembly
+    var registeredItems = CustomItems.RegisterAll();
+    
+    Log.Info($"Registered {registeredItems.Count} custom items.");
+}
+```
+
+</Step>
+
+<Step title="Test your item in-game">
+
+Spawn your item to test it:
+
+```csharp
+using LabApi.Features.Wrappers;
+using UnityEngine;
+
+// Get your item's ID
+ushort itemId = CustomItems.GetIdByName("Healing Syringe");
+
+// Spawn at a specific position
+if (CustomItems.TrySpawn(itemId, new Vector3(0, 2, 0), out Pickup pickup))
+{
+    Log.Info("Item spawned successfully!");
+}
+
+// Or give directly to a player
+if (CustomItems.TryGive(itemId, player, out Item item))
+{
+    Log.Info($"Gave item to {player.Nickname}");
+}
+```
+
+See the [spawning items guide](/guides/spawning-items) for more details.
+
+</Step>
+
+</Steps>
+
+## Complete example
+
+Here's a complete example of an EMP grenade that locks doors and flickers lights:
+
+```csharp
+using CustomItems.API;
+using CustomItems.Core;
+using LabApi.Events.Arguments.ServerEvents;
+using LabApi.Events.Handlers;
+using LabApi.Features.Wrappers;
+using MEC;
+using Mirror;
+
+namespace MyPlugin.Items;
+
+public class EMPGrenade : CustomItem
+{
+    public override string Name => "EMP Grenade";
+    public override string Description => "Locks doors and disables lights in current room.";
+    public override ItemType Type => ItemType.GrenadeHE;
+    
+    public override void OnRegistered()
+    {
+        // Subscribe to server events
+        ServerEvents.ProjectileExploding += OnExplosion;
+    }
+    
+    public override void OnUnregistered()
+    {
+        // Clean up event subscriptions
+        ServerEvents.ProjectileExploding -= OnExplosion;
+    }
+    
+    private void OnExplosion(ProjectileExplodingEventArgs ev)
+    {
+        // Check if this is our custom grenade
+        if (!Check(ev.TimedGrenade)) return;
+        
+        // Prevent normal explosion damage
+        ev.IsAllowed = false;
+        
+        Log.Debug($"EMP Grenade exploded at {ev.TimedGrenade.Position} in room {ev.TimedGrenade.Room.Name}.");
+        
+        Room room = ev.TimedGrenade.Room;
+        
+        // Flicker lights for 10 seconds
+        room.LightController.FlickerLights(10);
+        
+        // Lock all doors for 10 seconds
+        foreach (var door in room.Doors)
+        {
+            if (door.IsLocked) continue;
+            door.IsLocked = true;
+            
+            Timing.CallDelayed(10f, () =>
+            {
+                door.IsLocked = false;
+            });
+        }
+        
+        // Destroy the grenade
+        NetworkServer.Destroy(ev.TimedGrenade.GameObject);
+    }
+}
+```
+
+## Best practices
+
+- **Use unique names**: Item names must be unique across all plugins
+- **Choose appropriate base types**: Select an ItemType that matches your item's behavior (e.g., use `ItemType.Adrenaline` for consumables)
+- **Clean up resources**: Always unsubscribe from events in `OnUnregistered()`
+- **Use the Check() method**: Verify items belong to your custom type before processing events
+- **Handle edge cases**: Check if players are alive, items exist, etc. before modifying them

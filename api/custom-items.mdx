@@ -1,0 +1,377 @@
+---
+title: CustomItems
+description: Static class for registering, managing, and spawning custom items
+---
+
+`CustomItems` is the central static class for managing all custom items in your plugin. It provides methods to register custom items, spawn them in the world, give them to players, and retrieve registered items.
+
+## Properties
+
+<ResponseField name="AllItems" type="List<CustomItem>">
+  A list of all registered custom items. This is a read-only copy of the internal registry.
+</ResponseField>
+
+<ResponseField name="CurrentItems" type="Dictionary<ushort, CustomItem>">
+  A dictionary mapping item serial numbers to their corresponding custom item instances. This tracks all active custom items currently in the game world or player inventories.
+</ResponseField>
+
+## Registration Methods
+
+### Register
+
+Registers a single custom item with the CustomItems system.
+
+```csharp
+public static void Register(CustomItem item)
+```
+
+<ParamField path="item" type="CustomItem" required>
+  The custom item instance to register
+</ParamField>
+
+**Throws:**
+- `InvalidOperationException` - If an item with the same name is already registered
+
+**Example:**
+```csharp
+var healingCandy = new HealingCandy();
+CustomItems.Register(healingCandy);
+```
+
+### RegisterAll
+
+Automatically discovers and registers all custom item types in the calling assembly.
+
+```csharp
+public static List<CustomItem> RegisterAll()
+```
+
+**Returns:** `List<CustomItem>` - A list of all successfully registered items.
+
+**Example:**
+```csharp
+public override void OnEnabled()
+{
+    var registeredItems = CustomItems.RegisterAll();
+    Log.Info($"Registered {registeredItems.Count} custom items");
+}
+```
+
+## Unregistration Methods
+
+### Unregister
+
+Unregisters a single custom item from the CustomItems system and removes all active instances.
+
+```csharp
+public static void Unregister(CustomItem item)
+```
+
+<ParamField path="item" type="CustomItem" required>
+  The custom item instance to unregister
+</ParamField>
+
+**Throws:**
+- `InvalidOperationException` - If the item is not currently registered
+
+**Example:**
+```csharp
+var healingCandy = CustomItems.AllItems.FirstOrDefault(i => i.Name == "Healing Candy");
+if (healingCandy != null)
+{
+    CustomItems.Unregister(healingCandy);
+}
+```
+
+### UnregisterAll
+
+Unregisters all custom items from the calling assembly.
+
+```csharp
+public static List<CustomItem> UnregisterAll()
+```
+
+**Returns:** `List<CustomItem>` - A list of all unregistered items.
+
+**Example:**
+```csharp
+public override void OnDisabled()
+{
+    var unregisteredItems = CustomItems.UnregisterAll();
+    Log.Info($"Unregistered {unregisteredItems.Count} custom items");
+}
+```
+
+## Retrieval Methods
+
+### GetById
+
+Retrieves a registered custom item by its unique ID.
+
+```csharp
+public static CustomItem GetById(ushort id)
+```
+
+<ParamField path="id" type="ushort" required>
+  The unique ID of the custom item
+</ParamField>
+
+**Returns:** `CustomItem` - The custom item with the specified ID, or `null` if not found.
+
+**Example:**
+```csharp
+var item = CustomItems.GetById(0);
+if (item != null)
+{
+    Log.Info($"Found item: {item.Name}");
+}
+```
+
+### GetIdByName
+
+Retrieves the ID of a registered custom item by its name.
+
+```csharp
+public static ushort GetIdByName(string name)
+```
+
+<ParamField path="name" type="string" required>
+  The name of the custom item
+</ParamField>
+
+**Returns:** `ushort` - The ID of the custom item.
+
+**Throws:**
+- `KeyNotFoundException` - If no item with the specified name is found
+
+**Example:**
+```csharp
+try
+{
+    ushort id = CustomItems.GetIdByName("Healing Candy");
+    Log.Info($"Healing Candy ID: {id}");
+}
+catch (KeyNotFoundException)
+{
+    Log.Error("Healing Candy not found!");
+}
+```
+
+## Spawn Methods
+
+### TrySpawn
+
+Attempts to spawn a custom item in the world at the specified position.
+
+```csharp
+public static bool TrySpawn(ushort id, Vector3 position, out Pickup pickup)
+```
+
+<ParamField path="id" type="ushort" required>
+  The ID of the custom item to spawn
+</ParamField>
+
+<ParamField path="position" type="Vector3" required>
+  The world position where the item should be spawned
+</ParamField>
+
+<ParamField path="pickup" type="Pickup" required>
+  Output parameter that receives the created pickup object, or null if spawning failed
+</ParamField>
+
+**Returns:** `bool` - True if the item was spawned successfully, false otherwise.
+
+**Example:**
+```csharp
+ushort candyId = CustomItems.GetIdByName("Healing Candy");
+Vector3 spawnPos = new Vector3(0, 2, 0);
+
+if (CustomItems.TrySpawn(candyId, spawnPos, out Pickup pickup))
+{
+    Log.Info($"Spawned item at {spawnPos}");
+}
+else
+{
+    Log.Error("Failed to spawn item");
+}
+```
+
+### TryGive
+
+Attempts to give a custom item to a player.
+
+```csharp
+public static bool TryGive(ushort id, Player player, out Item item, ItemAddReason addReason = ItemAddReason.Undefined)
+```
+
+<ParamField path="id" type="ushort" required>
+  The ID of the custom item to give
+</ParamField>
+
+<ParamField path="player" type="Player" required>
+  The player who should receive the item
+</ParamField>
+
+<ParamField path="item" type="Item" required>
+  Output parameter that receives the created item object, or null if giving failed
+</ParamField>
+
+<ParamField path="addReason" type="ItemAddReason" default="ItemAddReason.Undefined">
+  The reason the item is being added to the player's inventory
+</ParamField>
+
+**Returns:** `bool` - True if the item was given successfully, false otherwise.
+
+**Example:**
+```csharp
+ushort candyId = CustomItems.GetIdByName("Healing Candy");
+
+if (CustomItems.TryGive(candyId, player, out Item item))
+{
+    player.SendHint("You received a Healing Candy!");
+}
+else
+{
+    Log.Error("Failed to give item to player");
+}
+```
+
+## Utility Methods
+
+### GetRandomPositionInRoom
+
+Finds a random valid position within a specific room for spawning items.
+
+```csharp
+public static Vector3 GetRandomPositionInRoom(Room room)
+```
+
+<ParamField path="room" type="Room" required>
+  The room to find a position in
+</ParamField>
+
+**Returns:** `Vector3` - A valid spawn position within the room, or the room center as a fallback.
+
+**Example:**
+```csharp
+var lcz173 = Room.List.FirstOrDefault(r => r.Name == "LCZ_173");
+if (lcz173 != null)
+{
+    Vector3 pos = CustomItems.GetRandomPositionInRoom(lcz173);
+    CustomItems.TrySpawn(itemId, pos, out _);
+}
+```
+
+### GetRandomPosition
+
+Finds a random valid position in any room on the map.
+
+```csharp
+public static Vector3 GetRandomPosition()
+```
+
+**Returns:** `Vector3` - A random valid spawn position on the map.
+
+**Example:**
+```csharp
+Vector3 randomPos = CustomItems.GetRandomPosition();
+CustomItems.TrySpawn(itemId, randomPos, out _);
+```
+
+## Complete Example
+
+```csharp
+using CustomItems.API;
+using LabApi;
+using LabApi.Features.Wrappers;
+using LabApi.Modules.CustomCommands;
+using System.Linq;
+
+public class CustomItemsPlugin : Plugin
+{
+    public override void OnEnabled()
+    {
+        // Register all custom items in this assembly
+        var items = CustomItems.RegisterAll();
+        Log.Info($"Registered {items.Count} custom items:");
+        
+        foreach (var item in items)
+        {
+            Log.Info($"  - {item.Name} (ID: {item.Id})");
+        }
+    }
+
+    public override void OnDisabled()
+    {
+        // Unregister all custom items from this assembly
+        CustomItems.UnregisterAll();
+    }
+}
+
+[Command("spawnitem", "Spawns a custom item")]
+public class SpawnItemCommand : PlayerCommand
+{
+    public override void Execute(Player sender, string[] args)
+    {
+        if (args.Length < 1)
+        {
+            sender.SendHint("Usage: spawnitem <name>");
+            return;
+        }
+
+        string itemName = string.Join(" ", args);
+        
+        try
+        {
+            ushort id = CustomItems.GetIdByName(itemName);
+            Vector3 spawnPos = sender.Position + sender.Transform.forward * 2;
+            
+            if (CustomItems.TrySpawn(id, spawnPos, out Pickup pickup))
+            {
+                sender.SendHint($"Spawned {itemName}!");
+            }
+            else
+            {
+                sender.SendHint("Failed to spawn item.");
+            }
+        }
+        catch (KeyNotFoundException)
+        {
+            sender.SendHint($"Item '{itemName}' not found.");
+        }
+    }
+}
+
+[Command("giveitem", "Gives a custom item to yourself")]
+public class GiveItemCommand : PlayerCommand
+{
+    public override void Execute(Player sender, string[] args)
+    {
+        if (args.Length < 1)
+        {
+            sender.SendHint("Usage: giveitem <name>");
+            return;
+        }
+
+        string itemName = string.Join(" ", args);
+        
+        try
+        {
+            ushort id = CustomItems.GetIdByName(itemName);
+            
+            if (CustomItems.TryGive(id, sender, out Item item, ItemAddReason.AdminCommand))
+            {
+                sender.SendHint($"You received {itemName}!");
+            }
+            else
+            {
+                sender.SendHint("Failed to give item.");
+            }
+        }
+        catch (KeyNotFoundException)
+        {
+            sender.SendHint($"Item '{itemName}' not found.");
+        }
+    }
+}
+```

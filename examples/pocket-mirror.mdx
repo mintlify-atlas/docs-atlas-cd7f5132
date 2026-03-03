@@ -1,0 +1,317 @@
+---
+title: "Pocket Mirror"
+description: "A coin that teleports players in and out of the Pocket Dimension"
+---
+
+## Overview
+
+The Pocket Mirror is a custom item that allows players to teleport to and from the Pocket Dimension. It demonstrates how to:
+
+- React to coin flip events
+- Check player location and status
+- Teleport players between zones
+- Use delayed actions for item mechanics
+- Validate item possession before executing effects
+
+## Features
+
+- Teleports players into the Pocket Dimension when flipped
+- Teleports players out of the Pocket Dimension without penalty
+- 1.5 second delay before teleportation occurs
+- Based on the Coin item type
+- Item is consumed after use when in Pocket Dimension
+- Safety checks prevent unintended behavior
+
+## Implementation
+
+### Full Source Code
+
+```csharp
+using CustomPlayerEffects;
+using LabApi.Events.Arguments.PlayerEvents;
+using LabApi.Events.Handlers;
+using LabApi.Features.Wrappers;
+using MapGeneration;
+using MEC;
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Text;
+using System.Threading.Tasks;
+
+namespace CustomItems.API.Example;
+
+public class PocketMirror : CustomItem
+{
+    public override string Name => "Pocket Mirror";
+
+    public override string Description => "When used, teleport to the Pocket Dimension. If already in the pocket dimension, get out without any cost.";
+
+    public override ItemType Type => ItemType.Coin;
+
+    public override void OnRegistered()
+    {
+        PlayerEvents.FlippedCoin += OnFlippedCoin;
+    }
+
+    public override void OnUnregistered()
+    {
+        PlayerEvents.FlippedCoin -= OnFlippedCoin;
+    }
+
+    private void OnFlippedCoin(PlayerFlippedCoinEventArgs ev)
+    {
+        if (PocketDimension.IsPlayerInside(ev.Player))
+        {
+            Timing.CallDelayed(1.5f, () =>
+            {
+                if (!ev.Player.IsAlive) return;
+                if (!PocketDimension.IsPlayerInside(ev.Player)) return;
+                if (!ev.Player.Items.Any(item => item is not null && item.Serial == ev.CoinItem.Serial)) return;
+                PocketDimension.ForceExit(ev.Player);
+                ev.Player.RemoveItem(ev.CoinItem);
+            });
+            return;
+        }
+        Timing.CallDelayed(1.5f, () =>
+        {
+            if (!ev.Player.IsAlive) return;
+            if (PocketDimension.IsPlayerInside(ev.Player)) return;
+            if (!ev.Player.Items.Any(item => item is not null && item.Serial == ev.CoinItem.Serial)) return;
+            PocketDimension.ForceInside(ev.Player);
+        });
+    }
+}
+```
+
+## How It Works
+
+### Event Registration
+
+The item registers for the `FlippedCoin` event:
+
+```csharp
+public override void OnRegistered()
+{
+    PlayerEvents.FlippedCoin += OnFlippedCoin;
+}
+```
+
+<Note>
+The Pocket Mirror uses coin flip events because the base item type is `ItemType.Coin`. This leverages the built-in coin flip animation.
+</Note>
+
+### Location-Based Behavior
+
+The handler checks if the player is already in the Pocket Dimension:
+
+```csharp
+private void OnFlippedCoin(PlayerFlippedCoinEventArgs ev)
+{
+    if (PocketDimension.IsPlayerInside(ev.Player))
+    {
+        // Escape logic
+    }
+    else
+    {
+        // Enter logic
+    }
+}
+```
+
+### Escaping the Pocket Dimension
+
+When used inside the Pocket Dimension:
+
+```csharp
+if (PocketDimension.IsPlayerInside(ev.Player))
+{
+    Timing.CallDelayed(1.5f, () =>
+    {
+        if (!ev.Player.IsAlive) return;
+        if (!PocketDimension.IsPlayerInside(ev.Player)) return;
+        if (!ev.Player.Items.Any(item => item is not null && item.Serial == ev.CoinItem.Serial)) return;
+        PocketDimension.ForceExit(ev.Player);
+        ev.Player.RemoveItem(ev.CoinItem);
+    });
+    return;
+}
+```
+
+**Safety checks:**
+1. **IsAlive**: Prevents errors if player died
+2. **IsPlayerInside**: Ensures player is still in Pocket Dimension
+3. **Item possession**: Verifies player still has the specific coin
+
+<Tip>
+The serial number check prevents issues if the player dropped or swapped the coin during the delay.
+</Tip>
+
+### Entering the Pocket Dimension
+
+When used outside the Pocket Dimension:
+
+```csharp
+Timing.CallDelayed(1.5f, () =>
+{
+    if (!ev.Player.IsAlive) return;
+    if (PocketDimension.IsPlayerInside(ev.Player)) return;
+    if (!ev.Player.Items.Any(item => item is not null && item.Serial == ev.CoinItem.Serial)) return;
+    PocketDimension.ForceInside(ev.Player);
+});
+```
+
+**Key differences:**
+- Uses `ForceInside()` instead of `ForceExit()`
+- Does NOT remove the item (can be used again to escape)
+- Same safety checks apply
+
+<Note>
+The item is only consumed when escaping the Pocket Dimension, making it a one-way ticket in but providing a safe exit.
+</Note>
+
+## Key Patterns
+
+### Conditional Item Behavior
+
+The Pocket Mirror changes behavior based on player location:
+
+```csharp
+if (PocketDimension.IsPlayerInside(ev.Player))
+{
+    // Exit behavior + consume item
+}
+else
+{
+    // Enter behavior + keep item
+}
+```
+
+This pattern is useful for:
+- Context-sensitive items
+- Toggle mechanics
+- Location-based utilities
+
+### Delayed Action Safety
+
+All delayed actions include safety checks:
+
+```csharp
+Timing.CallDelayed(1.5f, () =>
+{
+    if (!ev.Player.IsAlive) return;              // Player died
+    if (wrongLocation) return;                    // Player moved
+    if (!hasItem) return;                         // Item was dropped/removed
+    // Safe to execute effect
+});
+```
+
+<Tip>
+Always validate conditions in delayed callbacks. Game state can change significantly in 1.5 seconds.
+</Tip>
+
+### Serial Number Validation
+
+Verifying the exact item instance:
+
+```csharp
+if (!ev.Player.Items.Any(item => item is not null && item.Serial == ev.CoinItem.Serial)) return;
+```
+
+This prevents issues when:
+- Player picks up multiple coins
+- Player drops and picks up different coins
+- Item is removed/replaced during delay
+
+## Usage Example
+
+```csharp
+var pocketMirror = new PocketMirror();
+pocketMirror.Register();
+
+// Give to a player
+pocketMirror.Give(player);
+
+// Scenario 1: Outside Pocket Dimension
+// - Player flips coin
+// - After 1.5 seconds, teleported into Pocket Dimension
+// - Item remains in inventory
+
+// Scenario 2: Inside Pocket Dimension  
+// - Player flips coin
+// - After 1.5 seconds, teleported out safely
+// - Item is removed from inventory
+```
+
+## Advanced Patterns
+
+### Location Checks
+
+The Pocket Dimension utility provides useful methods:
+
+```csharp
+PocketDimension.IsPlayerInside(player);  // Check location
+PocketDimension.ForceInside(player);      // Teleport in
+PocketDimension.ForceExit(player);        // Teleport out (safe exit)
+```
+
+### Asymmetric Item Consumption
+
+The Pocket Mirror demonstrates asymmetric consumption:
+
+- **Entering**: Item is preserved
+- **Exiting**: Item is consumed
+
+This creates interesting gameplay:
+- Players can safely explore the Pocket Dimension
+- Escape has a cost (the item)
+- Encourages strategic use
+
+## Customization Ideas
+
+### Cooldown Between Uses
+
+```csharp
+private Dictionary<int, DateTime> lastUsed = new();
+
+private void OnFlippedCoin(PlayerFlippedCoinEventArgs ev)
+{
+    if (lastUsed.TryGetValue(ev.Player.Id, out DateTime last))
+    {
+        if ((DateTime.Now - last).TotalSeconds < 30)
+        {
+            ev.Player.ShowHint("Mirror is recharging...");
+            return;
+        }
+    }
+    lastUsed[ev.Player.Id] = DateTime.Now;
+    // ... rest of logic
+}
+```
+
+### Add Visual Effects
+
+```csharp
+Timing.CallDelayed(1.5f, () =>
+{
+    // Add hint before teleportation
+    ev.Player.ShowHint("The mirror shows another dimension...", 3);
+    
+    PocketDimension.ForceInside(ev.Player);
+});
+```
+
+### Consume on Both Uses
+
+```csharp
+// Remove item after entering too
+PocketDimension.ForceInside(ev.Player);
+ev.Player.RemoveItem(ev.CoinItem);
+```
+
+## Related Concepts
+
+- [Event Handlers](/core-concepts/events)
+- [Delayed Actions](/advanced/timing)
+- [Item Serial Numbers](/core-concepts/tracking)
+- [Player Teleportation](/api-reference/teleportation)

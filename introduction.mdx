@@ -1,0 +1,76 @@
+---
+title: CustomItems LabAPI
+description: "A flexible and powerful plugin framework for creating and managing custom items in SCP: Secret Laboratory"
+---
+
+# CustomItems LabAPI
+
+CustomItems LabAPI is a flexible and powerful plugin framework for creating and managing custom items in SCP: Secret Laboratory. It provides a structured API for defining, registering, and handling custom items with ease, including event hooks, command interfaces, and example implementations to enhance your plugin development.
+
+<CardGroup cols={2}>
+  <Card title="Installation" icon="download" href="/installation">
+    Get started by downloading and installing CustomItems LabAPI on your server
+  </Card>
+  <Card title="Quick start" icon="rocket" href="/quickstart">
+    Create your first custom item in minutes with our step-by-step guide
+  </Card>
+  <Card title="API reference" icon="code" href="/api/custom-item">
+    Explore the complete API documentation and method references
+  </Card>
+  <Card title="Examples" icon="lightbulb" href="/examples/emp-grenade">
+    View example implementations like EMP grenades and healing syringes
+  </Card>
+</CardGroup>
+
+## Key features
+
+CustomItems LabAPI provides everything you need to create unique gameplay experiences:
+
+### Define custom behaviors
+
+Create items with unique behaviors by inheriting from the `CustomItem` base class. Define properties like name, description, item type, and weight, then implement custom logic for item events.
+
+### Event-driven architecture
+
+Hook into comprehensive item-related events including usage, pickup, drop, and selection events. Build reactive gameplay mechanics that respond to player interactions.
+
+### Simple registration system
+
+Register individual items or automatically register all custom items in your assembly with a single method call. The framework handles item IDs and tracking automatically.
+
+### Spawn and give items
+
+Spawn custom items at specific positions in the world or give them directly to players. Built-in methods handle serialization and network synchronization.
+
+### Built-in examples
+
+Learn from included example items like the EMP Grenade that locks doors and flickers lights, or the Healing Syringe that applies gradual healing over time.
+
+### Logging and debugging
+
+Integrated logging utilities help you monitor item behavior and debug issues during development.
+
+## How it works
+
+CustomItems LabAPI uses a simple three-step workflow:
+
+1. **Create** - Inherit from `CustomItem` and implement your custom behavior
+2. **Register** - Register your item with the `CustomItems.Register()` method
+3. **Use** - Spawn or give your custom items in-game through commands or code
+
+The framework handles all the complexity of item tracking, event routing, and network synchronization, so you can focus on creating unique gameplay experiences.
+
+<Note>
+CustomItems LabAPI requires LabAPI to be installed on your SCP: Secret Laboratory server. Make sure you have the latest version of LabAPI before installing CustomItems.
+</Note>
+
+## Ready to get started?
+
+<CardGroup cols={2}>
+  <Card title="Install CustomItems LabAPI" icon="download" href="/installation">
+    Follow the installation guide to set up the framework
+  </Card>
+  <Card title="Build your first item" icon="hammer" href="/quickstart">
+    Create a custom item in just a few minutes
+  </Card>
+</CardGroup>

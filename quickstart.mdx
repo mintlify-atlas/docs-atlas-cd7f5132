@@ -1,80 +1,341 @@
 ---
-title: "Quickstart"
-description: "Start building awesome documentation in minutes"
+title: Quick start
+description: Create your first custom item with CustomItems LabAPI
 ---
 
-## Get started in three steps
+# Quick start
 
-Get your documentation site running locally and make your first customization.
+This guide walks you through creating your first custom item using CustomItems LabAPI. You'll learn the basic structure of a custom item and how to register it with the framework.
 
-### Step 1: Set up your local environment
+## Prerequisites
 
-<AccordionGroup>
-  <Accordion icon="copy" title="Clone your docs locally">
-    During the onboarding process, you created a GitHub repository with your docs content if you didn't already have one. You can find a link to this repository in your [dashboard](https://dashboard.mintlify.com).
+- CustomItems LabAPI installed on your server
+- Visual Studio or another C# IDE
+- Basic knowledge of C# and SCP: Secret Laboratory modding
+
+## Understanding custom items
+
+Every custom item in CustomItems LabAPI inherits from the `CustomItem` base class and implements several key components:
+
+- **Properties**: Define the item's name, description, type, and weight
+- **Event hooks**: Respond to player interactions like using, dropping, or picking up the item
+- **Registration callbacks**: Handle setup and cleanup when the item is registered or unregistered
+
+## Create your first custom item
+
+Let's create a simple custom item: a speed boost syringe that increases the player's movement speed when used.
+
+<Steps>
+  <Step title="Create a new class">
+    In your plugin project, create a new class that inherits from `CustomItem`:
     
-    To clone the repository locally so that you can make and preview changes to your docs, follow the [Cloning a repository](https://docs.github.com/en/repositories/creating-and-managing-repositories/cloning-a-repository) guide in the GitHub docs.
-  </Accordion>
-  <Accordion icon="rectangle-terminal" title="Start the preview server">
-    1. Install the Mintlify CLI: `npm i -g mint`
-    2. Navigate to your docs directory and run: `mint dev`
-    3. Open `http://localhost:3000` to see your docs live!
+    ```csharp
+    using CustomItems.API;
+    using LabApi.Events.Arguments.PlayerEvents;
+    using LabApi.Features.Wrappers;
+    using MEC;
+    using System.Collections.Generic;
+
+    namespace YourPlugin.CustomItems
+    {
+        public class SpeedBoostSyringe : CustomItem
+        {
+            // Implementation goes here
+        }
+    }
+    ```
+  </Step>
+
+  <Step title="Define basic properties">
+    Implement the required properties that define your item:
     
-    <Tip>Your preview updates automatically as you edit files.</Tip>
-  </Accordion>
-</AccordionGroup>
-
-### Step 2: Deploy your changes
-
-<AccordionGroup>
-  <Accordion icon="github" title="Install our GitHub app">
-    Install the Mintlify GitHub app from your [dashboard](https://dashboard.mintlify.com/settings/organization/github-app).
+    ```csharp
+    public override string Name => "Speed Boost Syringe";
     
-    Our GitHub app automatically deploys your changes to your docs site, so you don't need to manage deployments yourself.
-</Accordion>
-<Accordion icon="palette" title="Update your site name and colors">
-    For a first change, let's update the name and colors of your docs site.
+    public override string Description => "Temporarily increases movement speed.";
+    
+    public override ItemType Type => ItemType.Adrenaline;
+    
+    public override float Weight => 1.0f;
+    ```
+    
+    These properties determine how the item appears and behaves in the game. The `Type` property sets the base item model (in this case, an adrenaline syringe).
+  </Step>
 
-    1. Open `docs.json` in your editor.
-    2. Change the `"name"` field to your project name.
-    3. Update the `"colors"` to match your brand.
-    4. Save and see your changes instantly at `http://localhost:3000`.
+  <Step title="Implement registration callbacks">
+    Add the required registration methods. These are called when your item is registered or unregistered:
+    
+    ```csharp
+    public override void OnRegistered()
+    {
+        // Called when the item is registered
+        // Subscribe to events or initialize resources here
+    }
+    
+    public override void OnUnregistered()
+    {
+        // Called when the item is unregistered
+        // Unsubscribe from events or clean up resources here
+    }
+    ```
+  </Step>
 
-    <Tip>Try changing the primary color to see an immediate difference!</Tip>
-  </Accordion>
-</AccordionGroup>
+  <Step title="Add item behavior">
+    Override the `OnUsing` method to define what happens when a player uses the item:
+    
+    ```csharp
+    public override void OnUsing(PlayerUsingItemEventArgs ev)
+    {
+        // Apply speed boost effect
+        const float duration = 10f;
+        const float speedMultiplier = 1.3f;
+        
+        // Start the speed boost coroutine
+        Timing.RunCoroutine(ApplySpeedBoost(ev.Player, duration, speedMultiplier));
+        
+        // Remove the item from the player's inventory
+        ev.Player.RemoveItem(ev.UsableItem);
+    }
+    
+    private IEnumerator<float> ApplySpeedBoost(Player player, float duration, float multiplier)
+    {
+        // Store the original speed
+        float originalSpeed = player.MovementSpeed;
+        
+        // Apply the speed boost
+        player.MovementSpeed *= multiplier;
+        
+        // Wait for the duration
+        yield return Timing.WaitForSeconds(duration);
+        
+        // Restore original speed
+        if (player.IsAlive)
+            player.MovementSpeed = originalSpeed;
+    }
+    ```
+  </Step>
+</Steps>
 
-### Step 3: Go live
+## Complete example
 
-<Accordion icon="rocket" title="Publish your docs">
-  1. Commit and push your changes.
-  2. Your docs will update and be live in moments!
-</Accordion>
+Here's the complete code for the Speed Boost Syringe:
+
+```csharp CustomItems/SpeedBoostSyringe.cs
+using CustomItems.API;
+using LabApi.Events.Arguments.PlayerEvents;
+using LabApi.Features.Wrappers;
+using MEC;
+using System.Collections.Generic;
+
+namespace YourPlugin.CustomItems
+{
+    public class SpeedBoostSyringe : CustomItem
+    {
+        public override string Name => "Speed Boost Syringe";
+        
+        public override string Description => "Temporarily increases movement speed.";
+        
+        public override ItemType Type => ItemType.Adrenaline;
+        
+        public override float Weight => 1.0f;
+        
+        public override void OnRegistered() { }
+        
+        public override void OnUnregistered() { }
+        
+        public override void OnUsing(PlayerUsingItemEventArgs ev)
+        {
+            const float duration = 10f;
+            const float speedMultiplier = 1.3f;
+            
+            Timing.RunCoroutine(ApplySpeedBoost(ev.Player, duration, speedMultiplier));
+            ev.Player.RemoveItem(ev.UsableItem);
+        }
+        
+        private IEnumerator<float> ApplySpeedBoost(Player player, float duration, float multiplier)
+        {
+            float originalSpeed = player.MovementSpeed;
+            player.MovementSpeed *= multiplier;
+            
+            yield return Timing.WaitForSeconds(duration);
+            
+            if (player.IsAlive)
+                player.MovementSpeed = originalSpeed;
+        }
+    }
+}
+```
+
+## Register your custom item
+
+Once you've created your custom item class, you need to register it with the framework. In your plugin's `Enable` method:
+
+<CodeGroup>
+```csharp Register single item
+using CustomItems.API;
+
+public override void Enable()
+{
+    // Register a single item
+    var speedBoost = new SpeedBoostSyringe();
+    CustomItems.Register(speedBoost);
+}
+```
+
+```csharp Register all items
+using CustomItems.API;
+
+public override void Enable()
+{
+    // Automatically register all CustomItem classes in your assembly
+    var registeredItems = CustomItems.RegisterAll();
+    Log.Info($"Registered {registeredItems.Count} custom items.");
+}
+```
+</CodeGroup>
+
+<Note>
+The `RegisterAll()` method automatically finds and registers all classes in your assembly that inherit from `CustomItem`. This is the recommended approach for plugins with multiple custom items.
+</Note>
+
+Don't forget to unregister your items in the `Disable` method:
+
+```csharp
+public override void Disable()
+{
+    CustomItems.UnregisterAll();
+}
+```
+
+## Give items to players
+
+You can give custom items to players using the `TryGive` method:
+
+```csharp
+// Get the item ID by name
+ushort itemId = CustomItems.GetIdByName("Speed Boost Syringe");
+
+// Give the item to a player
+if (CustomItems.TryGive(itemId, player, out Item item))
+{
+    Log.Info($"Gave Speed Boost Syringe to {player.Nickname}");
+}
+```
+
+You can also spawn items in the world:
+
+```csharp
+// Spawn an item at a specific position
+if (CustomItems.TrySpawn(itemId, position, out Pickup pickup))
+{
+    Log.Info($"Spawned Speed Boost Syringe at {position}");
+}
+```
+
+## Advanced example: Event-driven item
+
+Let's look at a more advanced example from the included EMP Grenade that uses event subscriptions:
+
+```csharp Example: EMP Grenade
+using CustomItems.API;
+using CustomItems.Core;
+using LabApi.Events.Arguments.ServerEvents;
+using LabApi.Events.Handlers;
+using LabApi.Features.Wrappers;
+using MEC;
+using Mirror;
+
+namespace CustomItems.API.Example
+{
+    public class EMPGrenade : CustomItem
+    {
+        public override string Name => "EMP Grenade";
+        
+        public override string Description => "Locks doors and disables lights in current room.";
+        
+        public override ItemType Type => ItemType.GrenadeHE;
+        
+        public override void OnRegistered()
+        {
+            // Subscribe to the explosion event
+            ServerEvents.ProjectileExploding += OnExplosion;
+        }
+        
+        public override void OnUnregistered()
+        {
+            // Unsubscribe from the explosion event
+            ServerEvents.ProjectileExploding -= OnExplosion;
+        }
+        
+        private void OnExplosion(ProjectileExplodingEventArgs ev)
+        {
+            // Check if this is our custom item
+            if (!Check(ev.TimedGrenade)) return;
+            
+            // Cancel the normal explosion
+            ev.IsAllowed = false;
+            
+            Log.Debug($"EMP Grenade exploded at {ev.TimedGrenade.Position}");
+            
+            Room room = ev.TimedGrenade.Room;
+            
+            // Flicker lights for 10 seconds
+            room.LightController.FlickerLights(10);
+            
+            // Lock all doors in the room
+            foreach (var door in room.Doors)
+            {
+                if (door.IsLocked) continue;
+                door.IsLocked = true;
+                
+                // Unlock after 10 seconds
+                Timing.CallDelayed(10f, () => {
+                    door.IsLocked = false;
+                });
+            }
+            
+            // Destroy the grenade object
+            NetworkServer.Destroy(ev.TimedGrenade.GameObject);
+        }
+    }
+}
+```
+
+This example demonstrates:
+
+- Subscribing to game events in `OnRegistered()` (CustomItems-LabAPI/API/Example/EMPGrenade.cs:18-21)
+- Using the `Check()` method to verify if an item is your custom item (CustomItems-LabAPI/API/Example/EMPGrenade.cs:30)
+- Manipulating game objects like rooms, lights, and doors (CustomItems-LabAPI/API/Example/EMPGrenade.cs:36-47)
+- Proper cleanup in `OnUnregistered()` (CustomItems-LabAPI/API/Example/EMPGrenade.cs:23-26)
+
+## Available event hooks
+
+The `CustomItem` base class provides many event hooks you can override:
+
+| Event Hook | Description |
+|------------|-------------|
+| `OnUsing` | Called when a player starts using the item |
+| `OnUsed` | Called after the player finishes using the item |
+| `OnDropping` | Called when a player starts dropping the item |
+| `OnDropped` | Called after the item is dropped |
+| `OnPickingUp` | Called when a player starts picking up the item |
+| `OnPickedUp` | Called after the item is picked up |
+| `OnSelecting` | Called when a player starts selecting the item |
+| `OnSelected` | Called after the item is selected |
+| `OnUnselecting` | Called when a player starts unselecting the item |
+| `OnUnselected` | Called after the item is unselected |
+
+All event hooks receive an event args parameter that contains information about the event and allows you to modify or cancel the event.
 
 ## Next steps
 
-Now that you have your docs running, explore these key features:
+Now that you've created your first custom item, explore more advanced topics:
 
 <CardGroup cols={2}>
-
-<Card title="Write Content" icon="pen-to-square" href="/essentials/markdown">
-  Learn MDX syntax and start writing your documentation.
-</Card>
-
-<Card title="Customize style" icon="palette" href="/essentials/settings">
-  Make your docs match your brand perfectly.
-</Card>
-
-<Card title="Add code examples" icon="square-code" href="/essentials/code">
-  Include syntax-highlighted code blocks.
-</Card>
-
-<Card title="API documentation" icon="code" href="/api-reference/introduction">
-  Auto-generate API docs from OpenAPI specs.
-</Card>
-
+  <Card title="API reference" icon="code" href="/api/custom-item">
+    Explore the complete API documentation
+  </Card>
+  <Card title="Examples" icon="lightbulb" href="/examples/emp-grenade">
+    View more example implementations
+  </Card>
 </CardGroup>
-
-<Note>
-  **Need help?** See our [full documentation](https://mintlify.com/docs) or join our [community](https://mintlify.com/community).
-</Note>
